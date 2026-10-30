@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FlowBubble</string>
+    <string name="accessibility_service_label">FlowBubble voice access</string>
+    <string name="accessibility_description">FlowBubble reads the focused text field and any selected text so it can insert your dictation, replace a selection you asked to edit, and perform taps or scrolling you request by voice. It does not read passwords, send messages, or act without your explicit command.</string>
+    <string name="notification_channel_name">FlowBubble session</string>
+    <string name="notification_channel_description">Shows when the FlowBubble trigger is active and whether the microphone is recording.</string>
+    <string name="notification_capture_channel_name">Screen access</string>
+    <string name="notification_capture_channel_description">Shows while FlowBubble can see the screen for on-device reading and actions.</string>
+    <string name="notification_capture_title">FlowBubble can see the screen</string>
+    <string name="notification_capture_text">On-device OCR only. Nothing is recorded or uploaded. Tap Stop to end screen access.</string>
+    <string name="notification_listener_label">FlowBubble notification reader</string>
+    <string name="notification_title">FlowBubble is ready</string>
+    <string name="notification_listening">Listening…</string>
+    <string name="notification_stop">Stop</string>
+</resources>

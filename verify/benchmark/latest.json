@@ -1,0 +1,675 @@
+{
+  "stamp": "2026-10-30T11-30-16",
+  "results": [
+    {
+      "id": "app.youtube",
+      "group": "apps",
+      "phrase": "open youtube",
+      "verdict": "PASS",
+      "observed": "App / Opened YouTube / done",
+      "note": "",
+      "focus": "com.google.android.youtube",
+      "volume": null
+    },
+    {
+      "id": "app.chrome",
+      "group": "apps",
+      "phrase": "open chrome",
+      "verdict": "PASS",
+      "observed": "App / Opened Chrome / done",
+      "note": "",
+      "focus": "com.android.chrome",
+      "volume": null
+    },
+    {
+      "id": "app.gmail",
+      "group": "apps",
+      "phrase": "open gmail",
+      "verdict": "FAIL",
+      "observed": "App / Open Gmail / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "app.camera",
+      "group": "apps",
+      "phrase": "open camera",
+      "verdict": "FAIL",
+      "observed": "App / Open Camera / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "app.messages",
+      "group": "apps",
+      "phrase": "open messages",
+      "verdict": "PASS",
+      "observed": "App / Opened Messages / done",
+      "note": "",
+      "focus": "com.google.android.apps.messaging",
+      "volume": null
+    },
+    {
+      "id": "app.settings",
+      "group": "apps",
+      "phrase": "open settings",
+      "verdict": "FAIL",
+      "observed": "System / Opened Android settings / done",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "app.playstore",
+      "group": "apps",
+      "phrase": "open play store",
+      "verdict": "FAIL",
+      "observed": "App / Open Play Store / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "app.photos",
+      "group": "apps",
+      "phrase": "open photos",
+      "verdict": "FAIL",
+      "observed": "App / Open Photos / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "app.maps",
+      "group": "apps",
+      "phrase": "open maps",
+      "verdict": "FAIL",
+      "observed": "App / Open Maps / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "app.clock",
+      "group": "apps",
+      "phrase": "open clock",
+      "verdict": "PASS",
+      "observed": "App / Opened Clock / done",
+      "note": "",
+      "focus": "com.google.android.deskclock",
+      "volume": null
+    },
+    {
+      "id": "app.typo",
+      "group": "apps",
+      "phrase": "opem youube",
+      "verdict": "FAIL",
+      "observed": "App / Look up \"opem youube\" / did you mean YouTube",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "app.hindi",
+      "group": "apps",
+      "phrase": "यूट्यूब खोलो",
+      "verdict": "FAIL",
+      "observed": "App / Open YouTube / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "app.hinglish",
+      "group": "apps",
+      "phrase": "kholo chrome",
+      "verdict": "PASS",
+      "observed": "App / Opened Chrome / done",
+      "note": "",
+      "focus": "com.android.chrome",
+      "volume": null
+    },
+    {
+      "id": "app.unknown",
+      "group": "apps",
+      "phrase": "open zzzqwerty",
+      "verdict": "PASS",
+      "observed": "App / Look up \"zzzqwerty\" / did you mean Safety",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "search.web",
+      "group": "search",
+      "phrase": "search the web for weather",
+      "verdict": "PASS",
+      "observed": "Web / Search for “weather” / awaiting user",
+      "note": "",
+      "focus": "com.android.chrome",
+      "volume": null
+    },
+    {
+      "id": "search.lookup",
+      "group": "search",
+      "phrase": "look up weather",
+      "verdict": "PASS",
+      "observed": "Web / Search for “weather” / awaiting user",
+      "note": "",
+      "focus": "com.android.chrome",
+      "volume": null
+    },
+    {
+      "id": "search.url",
+      "group": "search",
+      "phrase": "go to example.com",
+      "verdict": "PASS",
+      "observed": "Web / https://example.com / awaiting user",
+      "note": "",
+      "focus": "com.android.chrome",
+      "volume": null
+    },
+    {
+      "id": "search.youtube",
+      "group": "search",
+      "phrase": "search lofi in youtube",
+      "verdict": "FAIL",
+      "observed": "Search / Search YouTube for \"lofi\" / not found",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "search.chrome",
+      "group": "search",
+      "phrase": "search weather in chrome",
+      "verdict": "PASS",
+      "observed": "Agent / Completed: Search Chrome for “weather” / done | Search / Search Chrome for \"weather\" / requested",
+      "note": "",
+      "focus": "com.android.chrome",
+      "volume": null
+    },
+    {
+      "id": "search.screen",
+      "group": "search",
+      "phrase": "search this screen for weather",
+      "verdict": "FAIL",
+      "observed": "Agent / Completed: Search for “weather” / done",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "search.hindi",
+      "group": "search",
+      "phrase": "क्रोम में मौसम खोजो",
+      "verdict": "PASS",
+      "observed": "Agent / Completed: Search Chrome for “मौसम” / done | Search / Search Chrome for \"मौसम\" / requested",
+      "note": "",
+      "focus": "com.android.chrome",
+      "volume": null
+    },
+    {
+      "id": "search.hinglish",
+      "group": "search",
+      "phrase": "youtube mein lofi khojo",
+      "verdict": "FAIL",
+      "observed": "Search / Search YouTube for \"lofi\" / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.scrollDown",
+      "group": "screen",
+      "phrase": "scroll down",
+      "verdict": "PASS",
+      "observed": "Screen / Scrolled down / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.scrollUp",
+      "group": "screen",
+      "phrase": "scroll up",
+      "verdict": "PASS",
+      "observed": "Screen / Scrolled up / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.tap",
+      "group": "screen",
+      "phrase": "tap battery",
+      "verdict": "PASS",
+      "observed": "Screen / Tapped Battery / done",
+      "note": "",
+      "focus": "com.android.settings",
+      "volume": null
+    },
+    {
+      "id": "screen.back",
+      "group": "screen",
+      "phrase": "go back",
+      "verdict": "FAIL",
+      "observed": "Screen / Went back / done",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.recents",
+      "group": "screen",
+      "phrase": "open recents",
+      "verdict": "PASS",
+      "observed": "Screen / Opened recent apps / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.home",
+      "group": "screen",
+      "phrase": "go home",
+      "verdict": "FAIL",
+      "observed": "Screen / Went home / done",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.read",
+      "group": "screen",
+      "phrase": "read this screen",
+      "verdict": "PASS",
+      "observed": "Read / Read 132 characters via accessibility / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.actions",
+      "group": "screen",
+      "phrase": "what can i do here",
+      "verdict": "PASS",
+      "observed": "Actions / Scan this screen / nothing found",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.screenshot",
+      "group": "screen",
+      "phrase": "take a screenshot",
+      "verdict": "PASS",
+      "observed": "System / Screenshot requested / requested",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.readHindi",
+      "group": "screen",
+      "phrase": "स्क्रीन पढ़ो",
+      "verdict": "FAIL",
+      "observed": "no new trace entries",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.scrollHindi",
+      "group": "screen",
+      "phrase": "नीचे स्क्रॉल करो",
+      "verdict": "PASS",
+      "observed": "Screen / Scrolled down / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "screen.backHindi",
+      "group": "screen",
+      "phrase": "पीछे जाओ",
+      "verdict": "FAIL",
+      "observed": "Screen / Went back / done | Screen / Tapped Battery / done",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.timer",
+      "group": "system",
+      "phrase": "set a timer for 5 minutes",
+      "verdict": "PASS",
+      "observed": "Timer / Timer for 5 min / requested",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.timerHindi",
+      "group": "system",
+      "phrase": "पाँच मिनट का टाइमर लगाओ",
+      "verdict": "PASS",
+      "observed": "Timer / Timer for 5 min / requested",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.alarm",
+      "group": "system",
+      "phrase": "set an alarm for 7:30 am",
+      "verdict": "PASS",
+      "observed": "Alarm / Alarm at 07:30 / requested",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.battery",
+      "group": "system",
+      "phrase": "battery status",
+      "verdict": "PASS",
+      "observed": "Battery / 100% / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.batteryHindi",
+      "group": "system",
+      "phrase": "बैटरी बताओ",
+      "verdict": "PASS",
+      "observed": "Battery / 100% / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.volumeUp",
+      "group": "system",
+      "phrase": "volume up",
+      "verdict": "PASS",
+      "observed": "Volume / Media volume up / done",
+      "note": "",
+      "focus": "",
+      "volume": "1 -> 2"
+    },
+    {
+      "id": "sys.volumeDown",
+      "group": "system",
+      "phrase": "volume down",
+      "verdict": "PASS",
+      "observed": "Volume / Media volume down / done",
+      "note": "",
+      "focus": "",
+      "volume": "2 -> 1"
+    },
+    {
+      "id": "sys.volumeHindi",
+      "group": "system",
+      "phrase": "आवाज़ बढ़ाओ",
+      "verdict": "PASS",
+      "observed": "Volume / Media volume up / done",
+      "note": "",
+      "focus": "",
+      "volume": "1 -> 2"
+    },
+    {
+      "id": "sys.mute",
+      "group": "system",
+      "phrase": "mute",
+      "verdict": "PASS",
+      "observed": "Volume / Muted media / done",
+      "note": "",
+      "focus": "",
+      "volume": "2 -> 0"
+    },
+    {
+      "id": "sys.unmute",
+      "group": "system",
+      "phrase": "unmute",
+      "verdict": "PASS",
+      "observed": "Volume / Unmuted media / done",
+      "note": "",
+      "focus": "",
+      "volume": "0 -> 5"
+    },
+    {
+      "id": "sys.torchOn",
+      "group": "system",
+      "phrase": "turn on the flashlight",
+      "verdict": "SKIP",
+      "observed": "System / Flashlight on / done",
+      "note": "device lacks the hardware for this task",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.torchOff",
+      "group": "system",
+      "phrase": "turn off the flashlight",
+      "verdict": "SKIP",
+      "observed": "System / Flashlight off / done",
+      "note": "device lacks the hardware for this task",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.dndOn",
+      "group": "system",
+      "phrase": "turn on do not disturb",
+      "verdict": "PASS",
+      "observed": "Do Not Disturb / On / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.dndOff",
+      "group": "system",
+      "phrase": "turn off do not disturb",
+      "verdict": "PASS",
+      "observed": "Do Not Disturb / Off / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.notifications",
+      "group": "system",
+      "phrase": "read notifications",
+      "verdict": "PASS",
+      "observed": "Notifications / Read 2 notifications / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "sys.clearNotifications",
+      "group": "system",
+      "phrase": "clear notifications",
+      "verdict": "FAIL",
+      "observed": "no new trace entries",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.call",
+      "group": "comms",
+      "phrase": "call pranav",
+      "verdict": "FAIL",
+      "observed": "Call / Dialer opened for Pranav / awaiting user | Notifications / Clear notifications / awaiting user",
+      "note": "expected foreground com.google.android.dialer",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.chat",
+      "group": "comms",
+      "phrase": "chat with pranav",
+      "verdict": "FAIL",
+      "observed": "no new trace entries",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.chatOf",
+      "group": "comms",
+      "phrase": "go to chat of pranav",
+      "verdict": "FAIL",
+      "observed": "Chat / Opened Messages for Pranav / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.chatHindi",
+      "group": "comms",
+      "phrase": "प्रणव से चैट करो",
+      "verdict": "FAIL",
+      "observed": "no new trace entries",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.message",
+      "group": "comms",
+      "phrase": "message pranav saying I will be late",
+      "verdict": "FAIL",
+      "observed": "Chat / Opened Messages for Pranav / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.messageHindi",
+      "group": "comms",
+      "phrase": "प्रणव को मैसेज भेजो कि मैं देर से आऊंगा",
+      "verdict": "FAIL",
+      "observed": "no new trace entries",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.email",
+      "group": "comms",
+      "phrase": "email test@example.com about lunch",
+      "verdict": "PASS",
+      "observed": "Email / Draft email / awaiting user",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.calendar",
+      "group": "comms",
+      "phrase": "create an event for team lunch",
+      "verdict": "PASS",
+      "observed": "Calendar / New event draft / awaiting user",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "comms.maps",
+      "group": "comms",
+      "phrase": "navigate to chennai",
+      "verdict": "PASS",
+      "observed": "Maps / Open \"chennai\" / awaiting user",
+      "note": "",
+      "focus": "com.google.android.apps.maps",
+      "volume": null
+    },
+    {
+      "id": "routine.save",
+      "group": "routines",
+      "phrase": "save a routine called bench for open youtube",
+      "verdict": "PASS",
+      "observed": "Routine / Saved bench / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "routine.run",
+      "group": "routines",
+      "phrase": "run routine bench",
+      "verdict": "FAIL",
+      "observed": "Routine / Ran bench / requested",
+      "note": "expected foreground com.google.android.youtube",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "routine.list",
+      "group": "routines",
+      "phrase": "list routines",
+      "verdict": "PASS",
+      "observed": "Routine / Listed 1 routines / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "routine.delete",
+      "group": "routines",
+      "phrase": "delete routine bench",
+      "verdict": "FAIL",
+      "observed": "no new trace entries",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "follow.repeat",
+      "group": "routines",
+      "phrase": "again",
+      "verdict": "PASS",
+      "observed": "Battery / 100% / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "follow.copy",
+      "group": "routines",
+      "phrase": "copy that",
+      "verdict": "PASS",
+      "observed": "Clipboard / Copied the last text / copied | Read / Read 344 characters via accessibility / done",
+      "note": "",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "agent.chain",
+      "group": "agent",
+      "phrase": "open chrome and search for weather",
+      "verdict": "FAIL",
+      "observed": "Agent / open chrome and search for weather / requested",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    },
+    {
+      "id": "agent.youtube",
+      "group": "agent",
+      "phrase": "open youtube and search for lofi",
+      "verdict": "FAIL",
+      "observed": "Agent / Stopped: open youtube and search for lofi / failed | Agent / open youtube and search for lofi / requested | Agent / Completed: open chrome and search for weather / unverified",
+      "note": "expected entry never appeared",
+      "focus": "",
+      "volume": null
+    }
+  ]
+}

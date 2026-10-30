@@ -1,0 +1,149 @@
+=== install ===
+Success
+=== permissions ===
+=== fresh app start ===
+bubble windows: 11
+=== TEST: open any app by alias ===
+--- said: open chrome
+  mCurrentFocus=Window{c1e7704 u0 com.android.chrome/com.google.android.apps.chrome.Main}
+10-30 11:47:33.352  8588  8588 I FlowBubbleDebug: simulate text=open chrome session=false
+=== TEST: generic in-app search ===
+--- said: search this app for airplane mode
+  mCurrentFocus=Window{4dc9255 u0 com.android.settings/com.android.settings.spa.SpaActivity}
+10-30 11:47:49.201  8588  8588 I FlowBubbleDebug: simulate text=search this app for airplane mode session=false
+=== TEST: read the screen ===
+--- said: read this screen
+  mCurrentFocus=Window{4dc9255 u0 com.android.settings/com.android.settings.spa.SpaActivity}
+10-30 11:48:05.000  8588  8588 I FlowBubbleDebug: simulate text=read this screen session=false
+=== TEST: gesture vocabulary ===
+--- said: open the menu
+  mCurrentFocus=Window{4dc9255 u0 com.android.settings/com.android.settings.spa.SpaActivity}
+10-30 11:48:19.032  8588  8588 I FlowBubbleDebug: simulate text=open the menu session=false
+--- said: swipe left
+  mCurrentFocus=Window{4dc9255 u0 com.android.settings/com.android.settings.spa.SpaActivity}
+10-30 11:48:30.330  8588  8588 I FlowBubbleDebug: simulate text=swipe left session=false
+--- said: scroll down twice
+  mCurrentFocus=Window{4dc9255 u0 com.android.settings/com.android.settings.spa.SpaActivity}
+10-30 11:48:41.096  8588  8588 I FlowBubbleDebug: simulate text=scroll down twice session=false
+--- said: dismiss the popup
+  mCurrentFocus=Window{4dc9255 u0 com.android.settings/com.android.settings.spa.SpaActivity}
+10-30 11:48:51.887  8588  8588 I FlowBubbleDebug: simulate text=dismiss the popup session=false
+=== TEST: code-mixed + typo rescue ===
+--- said: open youtube
+  mCurrentFocus=Window{80c4750 u0 com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.InternalMainActivity}
+10-30 11:49:02.743  8588  8588 I FlowBubbleDebug: simulate text=open youtube session=false
+--- said: kholo flipkart
+  mCurrentFocus=Window{80c4750 u0 com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.InternalMainActivity}
+10-30 11:49:14.751  8588  8588 I FlowBubbleDebug: simulate text=kholo flipkart session=false
+--- said: opem youube
+  mCurrentFocus=Window{80c4750 u0 com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.InternalMainActivity}
+10-30 11:49:26.568  8588  8588 I FlowBubbleDebug: simulate text=opem youube session=false
+=== TEST: follow-ups and routines ===
+--- said: save this as routine morning brief
+  mCurrentFocus=Window{80c4750 u0 com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.InternalMainActivity}
+10-30 11:49:38.396  8588  8588 I FlowBubbleDebug: simulate text=save this as routine morning brief session=false
+--- said: run routine morning brief
+  mCurrentFocus=Window{80c4750 u0 com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.InternalMainActivity}
+10-30 11:49:48.264  8588  8588 I FlowBubbleDebug: simulate text=run routine morning brief session=false
+=== TEST: router gate (notification listener revoked) ===
+Unknown command: deny_listener
+--- said: read my notifications
+  mCurrentFocus=Window{80c4750 u0 com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.InternalMainActivity}
+10-30 11:50:02.425  8588  8588 I FlowBubbleDebug: simulate text=read my notifications session=false
+=== TEST: router still lets a no-permission command through ===
+--- said: set a timer for 2 minutes
+  mCurrentFocus=Window{80c4750 u0 com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.InternalMainActivity}
+10-30 11:50:14.513  8588  8588 I FlowBubbleDebug: simulate text=set a timer for 2 minutes session=false
+--- said: turn on do not disturb for 1 minute
+  mCurrentFocus=Window{80c4750 u0 com.google.android.youtube/com.google.android.apps.youtube.app.watchwhile.InternalMainActivity}
+10-30 11:50:24.252  8588  8588 I FlowBubbleDebug: simulate text=turn on do not disturb for 1 minute session=false
+=== TEST: agent trace with per-step evidence ===
+--- said: open chrome and search for weather
+  mCurrentFocus=Window{c1e7704 u0 com.android.chrome/com.google.android.apps.chrome.Main}
+10-30 11:50:40.428  8588  8588 I FlowBubbleDebug: simulate text=open chrome and search for weather session=false
+=== HISTORY (the honest outcome log) ===
+&quot;kind&quot;:&quot;Agent&quot;
+&quot;summary&quot;:&quot;Stopped: open chrome and search for weather&quot;
+&quot;status&quot;:&quot;failed&quot;}
+&quot;kind&quot;:&quot;Agent&quot;
+&quot;summary&quot;:&quot;open chrome and search for weather&quot;
+&quot;status&quot;:&quot;requested&quot;}
+&quot;kind&quot;:&quot;Do Not Disturb&quot;
+&quot;summary&quot;:&quot;On for 1 min&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;Timer&quot;
+&quot;summary&quot;:&quot;Timer for 2 min&quot;
+&quot;status&quot;:&quot;requested&quot;}
+&quot;kind&quot;:&quot;Notifications&quot;
+&quot;summary&quot;:&quot;Read 1 notifications&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;App&quot;
+&quot;summary&quot;:&quot;Opened YouTube&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;Routine&quot;
+&quot;summary&quot;:&quot;Ran morning brief&quot;
+&quot;status&quot;:&quot;requested&quot;}
+&quot;kind&quot;:&quot;Routine&quot;
+&quot;summary&quot;:&quot;Saved morning brief&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;App&quot;
+&quot;summary&quot;:&quot;Look up \&quot;opem youube\&quot;&quot;
+&quot;status&quot;:&quot;did you mean Camera&quot;}
+&quot;kind&quot;:&quot;Dictation&quot;
+&quot;summary&quot;:&quot;Insertion failed&quot;
+&quot;status&quot;:&quot;failed&quot;}
+&quot;kind&quot;:&quot;App&quot;
+&quot;summary&quot;:&quot;Look up \&quot;kholo flipkart\&quot;&quot;
+&quot;status&quot;:&quot;not found&quot;}
+&quot;kind&quot;:&quot;App&quot;
+&quot;summary&quot;:&quot;Opened YouTube&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;Agent&quot;
+&quot;summary&quot;:&quot;dismiss the popup&quot;
+&quot;status&quot;:&quot;requested&quot;}
+&quot;kind&quot;:&quot;Screen&quot;
+&quot;summary&quot;:&quot;Scrolled down 2 times&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;Agent&quot;
+&quot;summary&quot;:&quot;Completed: swipe left&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;Agent&quot;
+&quot;summary&quot;:&quot;swipe left&quot;
+&quot;status&quot;:&quot;requested&quot;}
+&quot;kind&quot;:&quot;Agent&quot;
+&quot;summary&quot;:&quot;Completed: open the menu&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;Agent&quot;
+&quot;summary&quot;:&quot;open the menu&quot;
+&quot;status&quot;:&quot;requested&quot;}
+&quot;kind&quot;:&quot;Read&quot;
+&quot;summary&quot;:&quot;Read 191 characters via accessibility&quot;
+&quot;status&quot;:&quot;done&quot;}
+&quot;kind&quot;:&quot;Screen&quot;
+&quot;summary&quot;:&quot;Search this screen for \&quot;airplane mode\&quot;&quot;
+&quot;status&quot;:&quot;not found&quot;}
+=== ROUTINES ===
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <string name="r:morning+brief">morning brief&#31;open youtube</string>
+</map>
+=== PREFS ===
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <long name="dnd_revert_at" value="1793341284311" />
+</map>
+10-30 11:49:48.261  8588  8588 I FlowBubbleDebug: receiver got text=run routine morning brief
+10-30 11:49:48.263  8588  8588 I FlowBubbleDebug: startService sent
+10-30 11:49:48.264  8588  8588 I FlowBubbleDebug: simulate text=run routine morning brief session=false
+10-30 11:50:02.423  8588  8588 I FlowBubbleDebug: receiver got text=read my notifications
+10-30 11:50:02.425  8588  8588 I FlowBubbleDebug: startService sent
+10-30 11:50:02.425  8588  8588 I FlowBubbleDebug: simulate text=read my notifications session=false
+10-30 11:50:14.510  8588  8588 I FlowBubbleDebug: receiver got text=set a timer for 2 minutes
+10-30 11:50:14.512  8588  8588 I FlowBubbleDebug: startService sent
+10-30 11:50:14.513  8588  8588 I FlowBubbleDebug: simulate text=set a timer for 2 minutes session=false
+10-30 11:50:24.250  8588  8588 I FlowBubbleDebug: receiver got text=turn on do not disturb for 1 minute
+10-30 11:50:24.251  8588  8588 I FlowBubbleDebug: startService sent
+10-30 11:50:24.252  8588  8588 I FlowBubbleDebug: simulate text=turn on do not disturb for 1 minute session=false
+10-30 11:50:40.426  8588  8588 I FlowBubbleDebug: receiver got text=open chrome and search for weather
+10-30 11:50:40.427  8588  8588 I FlowBubbleDebug: startService sent
+10-30 11:50:40.428  8588  8588 I FlowBubbleDebug: simulate text=open chrome and search for weather session=false
