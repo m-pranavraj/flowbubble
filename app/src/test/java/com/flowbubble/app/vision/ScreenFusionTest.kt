@@ -51,6 +51,18 @@ class ScreenFusionTest {
     }
 
     @Test
+    fun `typed field text does not beat the suggestion it names`() {
+        val targets = listOf(
+            ScreenTarget("pranav", box(0, 40, 400, 100), TargetSource.ACCESSIBILITY, clickable = true, editable = true),
+            ScreenTarget("Pranav", box(0, 160, 400, 220), TargetSource.ACCESSIBILITY, clickable = false)
+        )
+        val found = ScreenFusion.findTarget("pranav", targets)
+        assertNotNull(found)
+        assertEquals("Pranav", found!!.label)
+        assertTrue(!found.editable)
+    }
+
+    @Test
     fun `ordinal selection uses the clickable pool`() {
         val targets = listOf(
             ScreenTarget("One", box(0, 0, 100, 50), TargetSource.ACCESSIBILITY, clickable = true),

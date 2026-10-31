@@ -2,9 +2,11 @@ package com.flowbubble.app.service
 
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.graphics.Color
@@ -14,6 +16,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.service.quicksettings.TileService
 import android.view.Gravity
@@ -50,11 +53,16 @@ import com.flowbubble.app.overlay.PanelContent
 import com.flowbubble.app.voice.Command
 import com.flowbubble.app.voice.CommandParser
 import com.flowbubble.app.voice.EngineKind
+import com.flowbubble.app.voice.HandsFree
 import com.flowbubble.app.voice.LlmClient
+import com.flowbubble.app.voice.Speaker
 import com.flowbubble.app.voice.SpeechController
 import com.flowbubble.app.voice.TextProcessor
 import com.flowbubble.app.voice.TranscriptionFailure
 import com.flowbubble.app.voice.TranscriptionListener
+import com.flowbubble.app.voice.VoiceAnswer
+import com.flowbubble.app.voice.VoiceAnswerParser
+import com.flowbubble.app.voice.WakeResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -75,6 +83,11 @@ class OverlayService : Service(), OverlayUi {
         @Volatile
         var isRunning = false
             private set
+
+        private const val VOICE_RETRY_MS = 6_000L
+        private const val LISTEN_WINDOW_MS = 20_000L
+        private const val CONFIRM_WINDOW_MS = 12_000L
+        private const val WAKE_RETRY_BASE_MS = 600L
 
         fun start(context: Context) {
             val intent = Intent(context, OverlayService::class.java).setAction(ACTION_START)
@@ -108,16 +121,47 @@ class OverlayService : Service(), OverlayUi {
     private var resultWatchdog: Runnable? = null
     private var listenWatchdog: Runnable? = null
 
+    private enum class VoiceMode { OFF, WAKE, COMMAND, CONFIRM }
+
+    private var handsFree = false
+    private var voiceMode = VoiceMode.OFF
+    private var voiceConfirm: PanelContent? = null
+    private var voiceConfirmAttempts = 0
+    private var speaker: Speaker? = null
+    private var screenOff = false
+    private var silentWakeStreak = 0
+    private var voiceStartFailures = 0
+
+    private val waitWake = Runnable { startWakeListening() }
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    screenOff = true
+                    handler.removeCallbacks(waitWake)
+                    if (voiceMode == VoiceMode.WAKE || voiceMode == VoiceMode.COMMAND) resetVoiceTurn()
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    screenOff = false
+                    if (handsFree) scheduleWakeListen(900)
+                }
+            }
+        }
+    }
+
     private val density get() = resources.displayMetrics.density
     private fun dp(value: Float) = (value * density).toInt()
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        panel = OverlayPanel(this, windowManager)
+        panel = OverlayPanel(this, windowManager).also { it.onClosed = ::onPanelClosed }
         executor = CommandExecutor(this, this)
         speech = SpeechController(this).also { it.listener = speechListener }
         speech.refreshEngineStatus(Prefs.language(this))
+        speaker = Speaker(this)
+        screenOff = getSystemService(PowerManager::class.java)?.isInteractive == false
         Notifications.ensureChannel(this)
 
         val notification = Notifications.build(this, "Bubble is ready. Hold the mic to talk.")
@@ -147,6 +191,16 @@ class OverlayService : Service(), OverlayUi {
         addBubble()
         DndRevert.restore(this)
         refreshTile()
+        ContextCompat.registerReceiver(
+            this,
+            screenReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        if (Prefs.handsFreeEnabled(this)) setHandsFree(true)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -156,12 +210,38 @@ class OverlayService : Service(), OverlayUi {
         }
         if (BuildConfig.DEBUG && intent?.action == ACTION_SIMULATE) {
             val text = intent.getStringExtra(EXTRA_SIMULATED_TEXT)
-            android.util.Log.i("FlowBubbleDebug", "simulate text=$text session=$sessionActive")
-            if (!text.isNullOrBlank() && !sessionActive) {
-                selectionSnapshot = FlowAccessibilityService.instance?.captureSelection()
-                awaitingResult = true
-                handleFinal(text)
+            android.util.Log.i("FlowBubbleDebug", "simulate text=$text session=$sessionActive handsFree=$handsFree")
+            if (!text.isNullOrBlank()) {
+                if (voiceMode == VoiceMode.CONFIRM) {
+                    // Test hook: speak the answer a microphone would deliver to a pending prompt.
+                    handleConfirmFinal(text)
+                    return START_NOT_STICKY
+                }
+                if (voiceMode != VoiceMode.OFF) resetVoiceTurn()
+                if (!sessionActive) {
+                    selectionSnapshot = FlowAccessibilityService.instance?.captureSelection()
+                    awaitingResult = true
+                    // A simulated utterance still obeys the wake rule while hands-free is on,
+                    // so injection exercises the same path as the microphone.
+                    val spoken = if (handsFree) {
+                        when (val wake = HandsFree.parse(text)) {
+                            is WakeResult.Command -> wake.text
+                            else -> ""
+                        }
+                    } else {
+                        text
+                    }
+                    if (spoken.isNotBlank()) {
+                        handleFinal(spoken)
+                    } else {
+                        awaitingResult = false
+                    }
+                }
             }
+        }
+        if (intent == null || intent.action == ACTION_START) {
+            val wanted = Prefs.handsFreeEnabled(this)
+            if (wanted != handsFree) setHandsFree(wanted)
         }
         return START_NOT_STICKY
     }
@@ -188,6 +268,13 @@ class OverlayService : Service(), OverlayUi {
     private fun cleanup() {
         isRunning = false
         refreshTile()
+        handsFree = false
+        voiceMode = VoiceMode.OFF
+        voiceConfirm = null
+        handler.removeCallbacks(waitWake)
+        runCatching { unregisterReceiver(screenReceiver) }
+        speaker?.shutdown()
+        speaker = null
         sessionActive = false
         awaitingResult = false
         removeWatchdogs()
@@ -290,6 +377,7 @@ class OverlayService : Service(), OverlayUi {
     }
 
     private fun beginListening() {
+        if (voiceMode != VoiceMode.OFF) resetVoiceTurn()
         if (sessionActive || awaitingResult) return
         val permissions = Permissions.snapshot(this)
         if (!permissions.microphone) {
@@ -349,6 +437,7 @@ class OverlayService : Service(), OverlayUi {
                 hidePill()
                 resetBubble()
                 showMessage("Didn't catch that", "I didn't hear anything. Hold the bubble and try again.")
+                if (handsFree) scheduleWakeListen(2200)
             }
         }.also { handler.postDelayed(it, 5500) }
         updateNotification("Processing...")
@@ -361,9 +450,255 @@ class OverlayService : Service(), OverlayUi {
         listenWatchdog = null
     }
 
+    // ---- Hands-free listening loop -------------------------------------------------------
+    // One recognizer turn at a time. Every turn ends with a single terminal callback
+    // (onFinal or onError) that routes by voiceMode and decides what to listen for next.
+
+    private fun setHandsFree(enabled: Boolean) {
+        if (enabled == handsFree) {
+            if (enabled) scheduleWakeListen(400)
+            return
+        }
+        handsFree = enabled
+        if (!enabled) {
+            handler.removeCallbacks(waitWake)
+            voiceConfirm = null
+            voiceConfirmAttempts = 0
+            resetVoiceTurn()
+            updateNotification("Bubble is ready. Hold the mic to talk.")
+            Toast.makeText(this, "Hands-free off", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val permissions = Permissions.snapshot(this)
+        if (!permissions.microphone || !permissions.accessibility) {
+            handsFree = false
+            Prefs.setHandsFreeEnabled(this, false)
+            showPanel(
+                PanelContent(
+                    title = "Finish setup for hands-free",
+                    body = "Hands-free needs the microphone and accessibility so it can hear \u201CHello Bubble\u201D and act in apps.",
+                    actions = listOf(
+                        PanelAction("Open setup", primary = true) {
+                            panel.close()
+                            MainActivity.open(this, MainActivity.SCREEN_SETUP)
+                        },
+                        PanelAction("Close") { panel.close() }
+                    )
+                )
+            )
+            return
+        }
+        resetVoiceTurn()
+        updateNotification("Hands-free is on. Say \u201CHello Bubble\u201D.")
+        speakThen("Hands-free is on.") { scheduleWakeListen(600) }
+    }
+
+    private fun scheduleWakeListen(delayMs: Long = 650) {
+        handler.removeCallbacks(waitWake)
+        if (!handsFree) return
+        handler.postDelayed(waitWake, delayMs)
+    }
+
+    private fun startWakeListening() {
+        if (!handsFree || screenOff) return
+        if (voiceMode != VoiceMode.OFF || sessionActive || awaitingResult || panel.isShowing) return
+        val permissions = Permissions.snapshot(this)
+        if (!permissions.microphone || !permissions.accessibility) return
+        beginVoiceSession(VoiceMode.WAKE)
+    }
+
+    private fun startCommandListening() {
+        if (!handsFree || screenOff || panel.isShowing) return
+        if (voiceMode != VoiceMode.OFF || sessionActive || awaitingResult) return
+        beginVoiceSession(VoiceMode.COMMAND)
+    }
+
+    private fun startConfirmListening() {
+        if (!handsFree || screenOff) return
+        val content = voiceConfirm ?: return
+        if (!panel.isShowing || content.onVoiceApprove == null) return
+        if (voiceMode != VoiceMode.OFF || sessionActive || awaitingResult) return
+        beginVoiceSession(VoiceMode.CONFIRM)
+    }
+
+    private fun beginVoiceSession(mode: VoiceMode) {
+        selectionSnapshot = null
+        lastPartial = ""
+        pendingEngineNote = null
+        sessionActive = true
+        awaitingResult = true
+        voiceMode = mode
+        bubble?.setState(BubbleView.State.LISTENING)
+        if (mode == VoiceMode.WAKE) {
+            updateNotification("Hands-free: say \u201CHello Bubble\u201D.")
+        } else {
+            showPill("Listening...")
+            updateNotification("Listening...")
+        }
+        if (!speech.start(Prefs.language(this))) {
+            resetVoiceTurn()
+            voiceStartFailures++
+            if (voiceStartFailures >= 4) {
+                voiceStartFailures = 0
+                Prefs.setHandsFreeEnabled(this, false)
+                setHandsFree(false)
+                showPanel(
+                    PanelContent(
+                        title = "Voice engine unavailable",
+                        body = "Hands-free stopped because the speech recognizer would not start. Check the engine and language in settings, then turn hands-free back on.",
+                        actions = listOf(
+                            PanelAction("Open settings", primary = true) {
+                                panel.close()
+                                MainActivity.open(this, MainActivity.SCREEN_SETTINGS)
+                            },
+                            PanelAction("Close") { panel.close() }
+                        )
+                    )
+                )
+            } else if (handsFree) {
+                scheduleWakeListen(VOICE_RETRY_MS)
+            }
+            return
+        }
+        voiceStartFailures = 0
+        removeWatchdogs()
+        val window = if (mode == VoiceMode.CONFIRM) CONFIRM_WINDOW_MS else LISTEN_WINDOW_MS
+        listenWatchdog = Runnable {
+            if (voiceMode != mode) return@Runnable
+            speech.stop()
+            handler.postDelayed({
+                if (voiceMode == mode && awaitingResult && lastPartial.isBlank()) {
+                    finishVoiceTurnWithoutSpeech()
+                }
+            }, 1200)
+        }.also { handler.postDelayed(it, window) }
+    }
+
+    private fun resetVoiceTurn() {
+        sessionActive = false
+        awaitingResult = false
+        voiceMode = VoiceMode.OFF
+        selectionSnapshot = null
+        pendingEngineNote = null
+        lastPartial = ""
+        removeWatchdogs()
+        runCatching { speech.cancel() }
+        hidePill()
+        resetBubble()
+    }
+
+    private fun finishVoiceTurnWithoutSpeech() {
+        val mode = voiceMode
+        if (mode == VoiceMode.OFF) return
+        resetVoiceTurn()
+        when (mode) {
+            VoiceMode.WAKE -> {
+                silentWakeStreak++
+                scheduleWakeListen(wakeRetryDelay())
+            }
+            VoiceMode.COMMAND -> speakThen("I didn't hear a command.") { scheduleWakeListen(700) }
+            VoiceMode.CONFIRM -> onConfirmUnheard()
+            VoiceMode.OFF -> Unit
+        }
+    }
+
+    private fun wakeRetryDelay(): Long =
+        (WAKE_RETRY_BASE_MS + silentWakeStreak * 400L).coerceAtMost(4_000L)
+
+    private fun handleWakeFinal(raw: String) {
+        if (voiceMode != VoiceMode.WAKE) return
+        silentWakeStreak = 0
+        when (val result = HandsFree.parse(raw)) {
+            WakeResult.None -> {
+                resetVoiceTurn()
+                scheduleWakeListen(wakeRetryDelay())
+            }
+            WakeResult.WakeOnly -> {
+                resetVoiceTurn()
+                speakThen("Yes?") { startCommandListening() }
+            }
+            is WakeResult.Command -> {
+                voiceMode = VoiceMode.OFF
+                dispatchFinal(result.text)
+                if (handsFree) scheduleWakeListen(1200)
+            }
+        }
+    }
+
+    private fun handleConfirmFinal(raw: String) {
+        val content = voiceConfirm
+        val spoken = when (val wake = HandsFree.parse(raw)) {
+            is WakeResult.Command -> wake.text
+            else -> raw
+        }
+        val answer = VoiceAnswerParser.parse(spoken)
+        resetVoiceTurn()
+        if (content == null) {
+            scheduleWakeListen(650)
+            return
+        }
+        when (answer) {
+            VoiceAnswer.YES -> {
+                content.onVoiceApprove?.invoke()
+                scheduleWakeListen(1500)
+            }
+            VoiceAnswer.NO -> {
+                content.onVoiceDeny?.invoke()
+                speakThen("Okay, cancelled.") { scheduleWakeListen(1500) }
+            }
+            null -> {
+                if (voiceConfirmAttempts < 2 && panel.isShowing) {
+                    voiceConfirmAttempts++
+                    speakThen("Please say yes or no.") { startConfirmListening() }
+                } else {
+                    speakThen("I didn't catch an answer.") { startConfirmListening() }
+                }
+            }
+        }
+    }
+
+    private fun onConfirmUnheard() {
+        if (voiceConfirm == null || !panel.isShowing) {
+            scheduleWakeListen(650)
+            return
+        }
+        voiceConfirmAttempts++
+        if (voiceConfirmAttempts > 3) {
+            speakThen("Say yes or no when you're ready.") { }
+            return
+        }
+        speakThen("Say yes or no.") { startConfirmListening() }
+    }
+
+    private fun speakThen(text: String, then: () -> Unit) {
+        val engine = speaker
+        if (engine == null) {
+            then()
+            return
+        }
+        var resumed = false
+        val once = {
+            if (!resumed) {
+                resumed = true
+                then()
+            }
+        }
+        engine.say(text, Prefs.language(this)) { handler.post(once) }
+        // An engine that never reports completion must not freeze the loop.
+        handler.postDelayed(once, 8000)
+    }
+
+    private fun onPanelClosed() {
+        voiceConfirm = null
+        voiceConfirmAttempts = 0
+        if (voiceMode != VoiceMode.OFF) resetVoiceTurn()
+        if (handsFree) scheduleWakeListen(650)
+    }
+
     private val speechListener = object : TranscriptionListener {
         override fun onReady() {
             if (!sessionActive) return
+            if (voiceMode == VoiceMode.WAKE) return
             showPill(if (lastPartial.isBlank()) pendingEngineNote ?: "Listening..." else lastPartial)
         }
 
@@ -371,12 +706,17 @@ class OverlayService : Service(), OverlayUi {
             engineLabel = kind.label
             pendingEngineNote = note
             if (!sessionActive) return
+            if (voiceMode == VoiceMode.WAKE) {
+                if (!screenOff) updateNotification("Hands-free: say \u201CHello Bubble\u201D.")
+                return
+            }
             showPill(note ?: "Listening...")
             updateNotification("Listening on the ${kind.label}...")
         }
 
         override fun onPartial(text: String) {
             if (!awaitingResult) return
+            if (voiceMode == VoiceMode.WAKE) return
             lastPartial = text
             pendingEngineNote = null
             showPill(text)
@@ -385,7 +725,11 @@ class OverlayService : Service(), OverlayUi {
         override fun onFinal(text: String) {
             if (!awaitingResult) return
             lastPartial = text
-            handleFinal(text)
+            when (voiceMode) {
+                VoiceMode.WAKE -> handleWakeFinal(text)
+                VoiceMode.CONFIRM -> handleConfirmFinal(text)
+                VoiceMode.COMMAND, VoiceMode.OFF -> handleFinal(text)
+            }
         }
 
         override fun onAmplitude(level: Float) {
@@ -394,6 +738,10 @@ class OverlayService : Service(), OverlayUi {
 
         override fun onError(message: String, failure: TranscriptionFailure) {
             if (!awaitingResult) return
+            if (voiceMode != VoiceMode.OFF) {
+                handleVoiceError(message, failure)
+                return
+            }
             val fallback = lastPartial.trim()
             if (fallback.isNotEmpty()) {
                 handleFinal(fallback)
@@ -409,11 +757,48 @@ class OverlayService : Service(), OverlayUi {
             updateNotification("Bubble is ready.")
             showMessage("Didn't catch that", message)
             handler.postDelayed({ resetBubble() }, 1600)
+            if (handsFree) scheduleWakeListen(2200)
+        }
+    }
+
+    private fun handleVoiceError(message: String, failure: TranscriptionFailure) {
+        val partial = lastPartial.trim()
+        if (partial.isNotEmpty()) {
+            when (voiceMode) {
+                VoiceMode.WAKE -> handleWakeFinal(partial)
+                VoiceMode.CONFIRM -> handleConfirmFinal(partial)
+                else -> handleFinal(partial)
+            }
+            return
+        }
+        val mode = voiceMode
+        resetVoiceTurn()
+        if (!handsFree) return
+        if (failure == TranscriptionFailure.PERMISSION) {
+            Prefs.setHandsFreeEnabled(this, false)
+            setHandsFree(false)
+            showMessage("Microphone unavailable", "Hands-free stopped because Android would not record audio. $message")
+            return
+        }
+        when (mode) {
+            VoiceMode.WAKE -> {
+                silentWakeStreak++
+                scheduleWakeListen(wakeRetryDelay())
+            }
+            VoiceMode.COMMAND -> speakThen("I didn't hear a command.") { scheduleWakeListen(700) }
+            VoiceMode.CONFIRM -> onConfirmUnheard()
+            VoiceMode.OFF -> Unit
         }
     }
 
     private fun handleFinal(raw: String) {
         if (!awaitingResult) return
+        voiceMode = VoiceMode.OFF
+        dispatchFinal(raw)
+        if (handsFree) scheduleWakeListen(1200)
+    }
+
+    private fun dispatchFinal(raw: String) {
         sessionActive = false
         awaitingResult = false
         speech.cancel()
@@ -495,7 +880,7 @@ class OverlayService : Service(), OverlayUi {
      */
     private fun showGate(gap: Gap) {
         HistoryStore.add(this, "Request", gap.title, "permission missing")
-        panel.show(
+        showPanel(
             PanelContent(
                 title = gap.title,
                 body = gap.detail,
@@ -552,7 +937,7 @@ class OverlayService : Service(), OverlayUi {
                 resetBubble()
                 if (!executor.offerAppGuess(raw)) {
                     HistoryStore.add(this@OverlayService, "Dictation", "Nowhere to type", "setup needed")
-                    panel.show(
+                    showPanel(
                         PanelContent(
                             title = "Nowhere to type",
                             body = "Tap a text field first, then hold the bubble. " +
@@ -590,7 +975,7 @@ class OverlayService : Service(), OverlayUi {
                         showInsertedPanel(result, inserted.previousText, inserted.newText)
                     } else {
                         HistoryStore.add(this@OverlayService, "Dictation", "Insertion unconfirmed", "unverified")
-                        panel.show(
+                        showPanel(
                             PanelContent(
                                 title = "Couldn't confirm the text",
                                 body = "The field didn't change. The text is copied to your clipboard so you can paste it.\n\n\u201C${result.take(240)}\u201D",
@@ -606,7 +991,7 @@ class OverlayService : Service(), OverlayUi {
                     hidePill()
                     resetBubble()
                     HistoryStore.add(this@OverlayService, "Dictation", "Copied to clipboard", "copied")
-                    panel.show(
+                    showPanel(
                         PanelContent(
                             title = "Text copied",
                             body = inserted.message,
@@ -622,7 +1007,7 @@ class OverlayService : Service(), OverlayUi {
                     if (!Permissions.snapshot(this@OverlayService).accessibility) {
                         accessibilityMissing("insert text")
                     } else {
-                        panel.show(
+                        showPanel(
                             PanelContent(
                                 title = "Couldn't insert text",
                                 body = inserted.message,
@@ -637,7 +1022,7 @@ class OverlayService : Service(), OverlayUi {
     }
 
     private fun showInsertedPanel(text: String, previous: String, expectedNew: String) {
-        panel.show(
+        showPanel(
             PanelContent(
                 title = "Text inserted",
                 body = "\u201C${text.take(240)}\u201D",
@@ -668,7 +1053,7 @@ class OverlayService : Service(), OverlayUi {
         if (!LlmClient.isConfigured(this)) {
             hidePill()
             resetBubble()
-            panel.show(
+            showPanel(
                 PanelContent(
                     title = "AI model needed",
                     body = "That edit needs an AI model. Add an API key in FlowBubble settings. Bullet lists, grammar, professional, and casual rewrites work without one.",
@@ -690,7 +1075,7 @@ class OverlayService : Service(), OverlayUi {
                 if (edited.isBlank()) {
                     hidePill()
                     resetBubble()
-                    panel.show(
+                    showPanel(
                         PanelContent(
                             title = "No change returned",
                             body = "The AI model returned an empty edit.",
@@ -704,7 +1089,7 @@ class OverlayService : Service(), OverlayUi {
                 hidePill()
                 resetBubble()
                 HistoryStore.add(this@OverlayService, "Edit", instruction.take(60), "failed")
-                panel.show(
+                showPanel(
                     PanelContent(
                         title = "Edit failed",
                         body = "The AI request failed: ${error.message ?: "unknown error"}. Your text was not changed.",
@@ -729,7 +1114,7 @@ class OverlayService : Service(), OverlayUi {
                 hidePill()
                 resetBubble()
                 HistoryStore.add(this@OverlayService, "Edit", replacement.take(80), "done")
-                panel.show(
+                showPanel(
                     PanelContent(
                         title = "Selection replaced",
                         body = "\u201C${replacement.take(240)}\u201D",
@@ -746,7 +1131,7 @@ class OverlayService : Service(), OverlayUi {
                 hidePill()
                 resetBubble()
                 HistoryStore.add(this@OverlayService, "Edit", "Result copied", "copied")
-                panel.show(
+                showPanel(
                     PanelContent(
                         title = "Edit copied",
                         body = result.message,
@@ -759,7 +1144,7 @@ class OverlayService : Service(), OverlayUi {
                 hidePill()
                 resetBubble()
                 HistoryStore.add(this@OverlayService, "Edit", "Edit failed", "failed")
-                panel.show(
+                showPanel(
                     PanelContent(
                         title = "Couldn't edit",
                         body = result.message,
@@ -776,9 +1161,9 @@ class OverlayService : Service(), OverlayUi {
         panel.close()
         if (undone) {
             HistoryStore.add(this, "Undo", "Reverted the last insertion", "done")
-            panel.show(PanelContent(title = "Undone", autoDismissMs = 1400))
+            showPanel(PanelContent(title = "Undone", autoDismissMs = 1400))
         } else {
-            panel.show(
+            showPanel(
                 PanelContent(
                     title = "Couldn't undo",
                     body = "The text field changed or lost focus, so FlowBubble won't overwrite it.",
@@ -789,15 +1174,19 @@ class OverlayService : Service(), OverlayUi {
     }
 
     private fun showQuickMenu() {
+        if (voiceMode != VoiceMode.OFF) resetVoiceTurn()
         if (sessionActive || awaitingResult) return
         val permissions = Permissions.snapshot(this)
-        panel.show(
+        showPanel(
             PanelContent(
                 title = "FlowBubble",
-                body = if (permissions.coreReady) {
-                    "Hold the bubble and speak. Tap to see this menu."
-                } else {
-                    "Some permissions are still missing. Finish setup to unlock voice control."
+                body = when {
+                    !permissions.coreReady ->
+                        "Some permissions are still missing. Finish setup to unlock voice control."
+                    Prefs.handsFreeEnabled(this) ->
+                        "Hands-free is on. Just say \u201CHello Bubble\u201D and then your command. Hold the bubble to talk without saying it."
+                    else ->
+                        "Hold the bubble and speak, or turn on hands-free and just say \u201CHello Bubble\u201D."
                 },
                 actions = buildList {
                     add(
@@ -810,6 +1199,17 @@ class OverlayService : Service(), OverlayUi {
                                 this@OverlayService,
                                 if (permissions.coreReady) MainActivity.SCREEN_HOME else MainActivity.SCREEN_SETUP
                             )
+                        }
+                    )
+                    add(
+                        PanelAction(
+                            if (Prefs.handsFreeEnabled(this@OverlayService)) "Turn off hands-free"
+                            else "Turn on hands-free"
+                        ) {
+                            val enable = !Prefs.handsFreeEnabled(this@OverlayService)
+                            Prefs.setHandsFreeEnabled(this@OverlayService, enable)
+                            panel.close()
+                            setHandsFree(enable)
                         }
                     )
                     add(
@@ -830,7 +1230,7 @@ class OverlayService : Service(), OverlayUi {
         primaryLabel: String = "Open setup",
         primaryAction: (() -> Unit)? = null
     ) {
-        panel.show(
+        showPanel(
             PanelContent(
                 title = title,
                 body = body,
@@ -856,7 +1256,7 @@ class OverlayService : Service(), OverlayUi {
     }
 
     private fun showMessage(title: String, body: String) {
-        panel.show(
+        showPanel(
             PanelContent(
                 title = title,
                 body = body,
@@ -868,7 +1268,10 @@ class OverlayService : Service(), OverlayUi {
     private fun resetBubble() {
         bubble?.setState(BubbleView.State.IDLE)
         bubble?.setAmplitude(0f)
-        updateNotification("Bubble is ready. Hold the mic to talk.")
+        updateNotification(
+            if (handsFree) "Hands-free is on. Say \u201CHello Bubble\u201D."
+            else "Bubble is ready. Hold the mic to talk."
+        )
     }
 
     private fun updateNotification(text: String) {
@@ -943,6 +1346,30 @@ class OverlayService : Service(), OverlayUi {
 
     override fun showPanel(content: PanelContent) {
         panel.show(content)
+        val prompt = content.voicePrompt
+        if (prompt == null) {
+            voiceConfirm = null
+            if (voiceMode != VoiceMode.OFF) resetVoiceTurn()
+            return
+        }
+        voiceConfirm = content
+        voiceConfirmAttempts = 0
+        if (!handsFree || screenOff) return
+        resetVoiceTurn()
+        speakThen(prompt) { startConfirmListening() }
+    }
+
+    override fun announce(text: String) {
+        if (!handsFree || screenOff) return
+        val phrase = text.trim().take(160)
+        if (phrase.isEmpty()) return
+        // The spoken confirmation prompt already says what this panel is for.
+        if (voiceMode == VoiceMode.CONFIRM) return
+        val interrupted = voiceMode != VoiceMode.OFF
+        if (interrupted) resetVoiceTurn()
+        speakThen(phrase) {
+            if (handsFree && voiceMode == VoiceMode.OFF && !panel.isShowing) scheduleWakeListen(500)
+        }
     }
 
     override fun closePanel() {

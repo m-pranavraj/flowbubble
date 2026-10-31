@@ -21,6 +21,7 @@ class OverlayPanel(
     private val context: Context,
     private val windowManager: WindowManager
 ) {
+    var onClosed: (() -> Unit)? = null
     private var root: View? = null
     private var current: PanelContent? = null
     private var hidden: PanelContent? = null
@@ -64,9 +65,11 @@ class OverlayPanel(
     }
 
     fun close() {
+        val wasShowing = root != null || current != null || hidden != null
         current = null
         hidden = null
         remove()
+        if (wasShowing) onClosed?.invoke()
     }
 
     fun hideForCapture() {

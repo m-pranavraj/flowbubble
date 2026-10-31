@@ -7,6 +7,7 @@ This repository is a working Android app (Kotlin, Jetpack Compose, custom overla
 ## What is built
 
 - Floating, draggable bubble above other apps with hold-to-talk, live transcript, and a Stop action in the ongoing notification.
+- Hands-free wake phrase: say "Hello Bubble", then a command, with no touch at all. Listening pauses when the screen is off, so does the microphone. Outcomes and confirmation prompts are read aloud, and you can answer "yes" or "no"; silence never approves anything. It is off by default and has its own switch in Settings and the bubble menu.
 - Dictation: speech is transcribed, filler words and repeated words are removed, punctuation and casing are applied, and the result is inserted at the caret. Insertions are verified against the focused field, and a short-lived Undo is offered.
 - Inline editing: select text in any editable field that exposes accessibility selection, then hold the bubble and say "make this professional", "turn this into bullet points", "translate to Spanish", and similar. On-device rewrites work without a model; free-form edits use an optional OpenAI-compatible endpoint.
 - Commands: open apps, set a timer or alarm, open the dialer, prepare a message draft, open an existing chat with a contact, open map directions, Do Not Disturb on/off (with optional duration, automatically reverted even if the app is restarted or the device reboots), taps by label or ordinal, scroll, back/home/recents, open Android settings, take a screenshot, play/pause media, read or clear notifications, type into the focused field, and search the current app or the web.
@@ -89,7 +90,19 @@ This build is intended for developer testing and sideloading. Google Play restri
    - Free text with no selection is cleaned and inserted at the caret.
    - Free text with a selection is treated as an editing instruction.
    - A command that needs a switch you have not opened stops there: the panel names the switch, says what was not done, and offers **Open settings** for exactly that screen. Nothing runs partially on the way.
-4. Drag the bubble quickly to move it. Tap it for a menu with setup, status, and a turn-off switch.
+4. Drag the bubble quickly to move it. Tap it for a menu with setup, status, hands-free, and a turn-off switch.
+
+## Hands-free
+
+Turn on **Hands-free** in Settings, or tap the bubble and choose **Turn on hands-free**. The bubble keeps one recognizer turn open while the screen is on and waits for the wake phrase.
+
+1. Say **"Hello Bubble"**. It answers "Yes?" and listens for one command. You can also say the command in the same breath: "Hello Bubble, open Gmail."
+2. The command runs through exactly the same router, safety gates, and verification as a held-bubble turn. The outcome is spoken ("Opened Gmail", "I stopped because…"), and the bubble returns to waiting for the wake phrase.
+3. Say **"close"**, **"cancel"**, or **"go back"** to dismiss whatever is showing. **"Tap …"**, **"type …"**, **"scroll …"**, and short agent chains work the same way they do in a held turn, so compose screens, dialogs, and any visible button can be driven without touching the screen.
+4. When an action needs confirmation, FlowBubble reads the panel aloud and listens for **yes** or **no** (Hindi "haan" and "nahi" also work). Tapping the panel still works. Silence, a timeout, or a closed panel never counts as approval.
+5. While a panel is open, wake listening pauses; closing it resumes. Turning the screen off stops the microphone; turning it on resumes listening.
+
+Hands-free is off by default. It listens only while the screen is on and the switch is on, the ongoing notification always shows that state, and turning the bubble off ends it along with the microphone service. Continuous listening costs battery, and Android shows its microphone indicator while the service holds the microphone.
 
 Example commands:
 
@@ -120,6 +133,7 @@ Example commands:
 - "Swipe left." / "Swipe right twice." (For carousels, tabs, and sideways lists.)
 - "Select all." / "Copy." / "Paste." / "Clear the field." (Field and selection control in any app.)
 - "Dismiss." / "Close this popup." (Presses a close or cancel control, or asks before using back. It never presses Allow, OK, Confirm, Buy, or Delete for you.)
+- "Close." / "Cancel it." (Dismisses the current dialog, keyboard, or activity with the back action. Inside a FlowBubble confirmation, "no" or "cancel" denies it instead.)
 - "Open Chrome then search for weather." / "Tap the second result, then scroll down." (Short verified agent chains.)
 - With text selected: "Make this professional." / "Turn this into bullet points." / "Translate this to Spanish."
 
@@ -165,9 +179,11 @@ The key is stored in the app's private SharedPreferences on the device. Use a re
 
 ## Safety behavior
 
-- No messages, posts, purchases, or deletions are completed without a visible confirmation panel and the user's own final tap in the target app.
+- No messages, posts, purchases, or deletions are completed without a visible confirmation panel and the user's own answer: a tap, or a spoken yes when hands-free is on. A prompt that is ignored, times out, or is closed is a no.
 - Password fields are never read or written. OCR is skipped while a password field is focused, credential-looking labels are refused, and apps that expose selection unpredictably get a text re-check before replacement (the result is copied instead when the field changed).
-- Taps on risky labels (send, pay, delete, call, allow, install, dismiss, discard) require a confirmation panel with the label and reason. Credential labels are blocked outright, and so are sign-in, payment, and CAPTCHA or "not a robot" prompts — FlowBubble will not work through a lock screen or a human check. A confirmation that is never answered does not become a silent "yes".
+- Taps on risky labels (send, pay, delete, call, allow, install, dismiss, discard) require a confirmation panel with the label and reason — including a direct "tap send" command, not only agent steps. For a risky tap FlowBubble resolves the target only against actual controls, never against field text that merely contains the word, and the confirmation names the exact control it will press. Credential labels are blocked outright, and so are sign-in, payment, and CAPTCHA or "not a robot" prompts — FlowBubble will not work through a lock screen or a human check. A confirmation that is never answered does not become a silent "yes".
+- Labels are matched the way people speak them: "&" reads as "and", punctuation and hyphens are ignored ("Network & internet" answers to "network and internet", "Wi-Fi" to "wifi"), and Devanagari vowel marks stay part of their letters instead of splitting words. Screen labels that only expose a content description are still found, so icon-only buttons such as Send can be named and gated.
+- A field's placeholder is not treated as typed text. When a composer shows its hint after clearing, FlowBubble reads the value against the hint, so a successful clear or type is confirmed rather than misreported as left-over text.
 - "Dismiss" and "close this" only press a control whose label really is close, cancel, skip, got it, or back. If the only buttons are Allow, OK, Confirm, Send, Delete, Buy, or Sign in, FlowBubble says so and stops; using the back gesture instead always asks first.
 - A search that has to submit itself asks about the field's identity, not its contents: an address bar or a field whose hint says search, find, or look up is submitted as asked, while a field that could be a message composer is held for your approval. That approval appears only after the text is already visible in the field, so you are never asked to approve a submit you cannot inspect.
 - Copy, paste, and select-all act on the focused field only. FlowBubble never reads the clipboard back, so it reports what the app accepted rather than what is stored, and it refuses to type or paste into a password field.
@@ -281,6 +297,17 @@ Screen capture cannot be pre-granted over ADB. Start the bubble, tap "Turn on sc
 `settings put secure enabled_accessibility_services` can be reset by an emulator reboot or a package replace; re-apply it and the Setup screen will update within two seconds.
 
 On an emulator, the host microphone is used by the guest. If speech recognition is unavailable, install or update the Google app and check that a speech recognition service is present.
+
+### Device benchmark
+
+`scripts/benchmark.mjs` runs a frozen set of 67 spoken tasks on a connected device and judges each one by the product's own history entry and foreground state, not by a screenshot. It covers app opening, web and in-app search, screen reading and control, system actions, communication drafts, routines, follow-ups, and two multi-step agent chains.
+
+```bash
+DEVICE=emulator-5554 node scripts/benchmark.mjs --install
+DEVICE=emulator-5554 node scripts/benchmark.mjs --only apps
+```
+
+The runner installs the current debug APK, re-enables accessibility, starts the bubble, speaks each phrase through the debug transcript receiver, and polls history for the expected outcome. Confirmation tasks press Back after the panel appears, so a timeout never becomes a silent approval. Reports are written to `verify/benchmark/latest.md` and `latest.json`; each failure lists what the product actually recorded. Emulator-only failures (no flash unit, no notification access, no clock handler) are skipped or marked as such by the task definitions.
 
 ### Injecting a transcript without a microphone
 

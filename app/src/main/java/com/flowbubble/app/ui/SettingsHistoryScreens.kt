@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.flowbubble.app.core.HistoryEntry
 import com.flowbubble.app.core.Prefs
 import com.flowbubble.app.core.RoutineStore
+import com.flowbubble.app.service.OverlayService
 import com.flowbubble.app.voice.EngineChoice
 import com.flowbubble.app.voice.InstallEvent
 import com.flowbubble.app.voice.LocalSpeechModel
@@ -55,6 +56,7 @@ internal fun SettingsScreen(onClearHistory: () -> Unit) {
     var model by remember { mutableStateOf(Prefs.aiModel(context)) }
     var cleanup by remember { mutableStateOf(Prefs.aiCleanupEnabled(context)) }
     var agentPlanning by remember { mutableStateOf(Prefs.agentLlmEnabled(context)) }
+    var handsFree by remember { mutableStateOf(Prefs.handsFreeEnabled(context)) }
     var language by remember { mutableStateOf(Prefs.language(context)) }
     var confirmClear by remember { mutableStateOf(false) }
     var routines by remember { mutableStateOf(RoutineStore.list(context)) }
@@ -209,6 +211,37 @@ internal fun SettingsScreen(onClearHistory: () -> Unit) {
         SpeechEngineCard(language)
 
         FlowCard {
+            SectionLabel("Hands-free")
+            Spacer(Modifier.height(6.dp))
+            BodyText("Say \u201CHello Bubble\u201D, then your command. FlowBubble listens only while this switch is on and the screen is on, so nothing in another app can trigger a command by accident.")
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Listen for \u201CHello Bubble\u201D",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Spoken confirmations accept yes or no. Silence never approves a message, purchase, or destructive action.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 17.sp
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(
+                    checked = handsFree,
+                    onCheckedChange = {
+                        handsFree = it
+                        Prefs.setHandsFreeEnabled(context, it)
+                        if (OverlayService.isRunning) OverlayService.start(context)
+                    }
+                )
+            }
+        }
+
+        FlowCard {
             SectionLabel("Voice routines")
             Spacer(Modifier.height(6.dp))
             BodyText("Save a command you repeat and replay it by name. Every routine runs through the same checks and confirmations as speaking it yourself.")
@@ -257,7 +290,7 @@ internal fun SettingsScreen(onClearHistory: () -> Unit) {
             SectionLabel("Privacy & data")
             Spacer(Modifier.height(10.dp))
             listOf(
-                "Audio is handled by Android's speech recognizer only while you hold the bubble.",
+                "Audio is handled by Android's speech recognizer only while you hold the bubble, or while hands-free is on and listening.",
                 "Screen frames are read on-device, kept in memory, and never saved.",
                 "Notifications are kept in memory for this session only.",
                 "History stores command summaries, never transcripts, audio, or screen text.",

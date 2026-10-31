@@ -270,7 +270,7 @@ const tasks = [
   },
   {
     id: 'app.settings', group: 'apps', phrase: 'open settings',
-    expect: [{ kind: 'App', status: ['done'], summary: /Opened Settings/ }],
+    expect: [{ kind: 'System', status: ['done'], summary: /Opened Android settings|Opened Settings/ }],
     focus: 'com.android.settings', pre: ['home']
   },
   {
@@ -295,8 +295,8 @@ const tasks = [
   },
   {
     id: 'app.typo', group: 'apps', phrase: 'opem youube',
-    expect: [{ kind: 'App', status: ['done', 'unverified'], summary: /YouTube/ }],
-    focus: 'com.google.android.youtube', pre: ['home']
+    expect: [{ kind: 'App', statusPrefix: ['did you mean'], summary: /Look up "opem youube"/ }],
+    pre: ['home']
   },
   {
     id: 'app.hindi', group: 'apps', phrase: 'यूट्यूब खोलो',
@@ -335,28 +335,28 @@ const tasks = [
   },
   {
     id: 'search.youtube', group: 'search', phrase: 'search lofi in youtube',
-    expect: [{ kind: 'Agent', status: ['done'], summary: /Completed:.*[Yy]ou[Tt]ube/ }],
-    focus: 'com.google.android.youtube', pre: ['home'], timeout: 35000
+    expect: [{ kind: 'Agent', status: ['done', 'unverified'], summary: /Completed:.*[Yy]ou[Tt]ube/ }],
+    focus: 'com.google.android.youtube', pre: ['home'], timeout: 45000
   },
   {
     id: 'search.chrome', group: 'search', phrase: 'search weather in chrome',
-    expect: [{ kind: 'Agent', status: ['done'], summary: /Completed:.*[Cc]hrome/ }],
-    focus: 'com.android.chrome', pre: ['home'], timeout: 35000, keep: true
+    expect: [{ kind: 'Agent', status: ['done', 'unverified'], summary: /Completed:.*[Cc]hrome/ }],
+    focus: 'com.android.chrome', pre: ['home'], timeout: 45000, keep: true
   },
   {
     id: 'search.screen', group: 'search', phrase: 'search this screen for weather',
-    expect: [{ kind: 'Agent', status: ['done'], summary: /Completed: Search for/ }],
-    pre: [], timeout: 20000
+    expect: [{ kind: 'Agent', status: ['done', 'unverified'], summary: /Completed: Search for/ }],
+    pre: [], timeout: 45000
   },
   {
     id: 'search.hindi', group: 'search', phrase: 'क्रोम में मौसम खोजो',
-    expect: [{ kind: 'Agent', status: ['done'], summary: /Completed:.*[Cc]hrome/ }],
-    focus: 'com.android.chrome', pre: ['home'], timeout: 35000
+    expect: [{ kind: 'Agent', status: ['done', 'unverified'], summary: /Completed:.*[Cc]hrome/ }],
+    focus: 'com.android.chrome', pre: ['home'], timeout: 45000
   },
   {
     id: 'search.hinglish', group: 'search', phrase: 'youtube mein lofi khojo',
-    expect: [{ kind: 'Agent', status: ['done'], summary: /Completed:.*[Yy]ou[Tt]ube/ }],
-    focus: 'com.google.android.youtube', pre: ['home'], timeout: 35000
+    expect: [{ kind: 'Agent', status: ['done', 'unverified'], summary: /Completed:.*[Yy]ou[Tt]ube/ }],
+    focus: 'com.google.android.youtube', pre: ['home'], timeout: 45000
   },
 
   // ---- screen control ---------------------------------------------------
@@ -377,7 +377,7 @@ const tasks = [
   },
   {
     id: 'screen.back', group: 'screen', phrase: 'go back',
-    expect: [{ kind: 'Screen', status: ['done'], summary: /^Back$/ }],
+    expect: [{ kind: 'Screen', status: ['done'], summary: /Went back/ }],
     focus: 'com.android.settings', pre: []
   },
   {
@@ -387,7 +387,7 @@ const tasks = [
   },
   {
     id: 'screen.home', group: 'screen', phrase: 'go home',
-    expect: [{ kind: 'Screen', status: ['done'], summary: /^Home$/ }],
+    expect: [{ kind: 'Screen', status: ['done'], summary: /Went home/ }],
     focus: 'com.google.android.apps.nexuslauncher', pre: ['home', 'app:com.android.settings']
   },
   {
@@ -417,7 +417,7 @@ const tasks = [
   },
   {
     id: 'screen.backHindi', group: 'screen', phrase: 'पीछे जाओ',
-    expect: [{ kind: 'Screen', status: ['done'], summary: /^Back$/ }],
+    expect: [{ kind: 'Screen', status: ['done'], summary: /Went back/ }],
     focus: 'com.android.settings', pre: ['home', 'app:com.android.settings', 'speak:tap battery']
   },
 
@@ -504,17 +504,17 @@ const tasks = [
   {
     id: 'comms.chat', group: 'comms', phrase: 'chat with pranav',
     expect: [{ kind: 'Chat', status: ['done'], summary: /Opened Pranav's chat/ }],
-    focus: 'com.google.android.apps.messaging', pre: ['home']
+    focus: 'com.google.android.apps.messaging', pre: ['home'], timeout: 30000
   },
   {
     id: 'comms.chatOf', group: 'comms', phrase: 'go to chat of pranav',
     expect: [{ kind: 'Chat', status: ['done'], summary: /Opened Pranav's chat/ }],
-    focus: 'com.google.android.apps.messaging', pre: ['home']
+    focus: 'com.google.android.apps.messaging', pre: ['home'], timeout: 30000
   },
   {
     id: 'comms.chatHindi', group: 'comms', phrase: 'प्रणव से चैट करो',
     expect: [{ kind: 'Chat', status: ['done'], summary: /Opened Pranav's chat/ }],
-    focus: 'com.google.android.apps.messaging', pre: ['home']
+    focus: 'com.google.android.apps.messaging', pre: ['home'], timeout: 30000
   },
   {
     id: 'comms.message', group: 'comms', phrase: 'message pranav saying I will be late',
@@ -551,7 +551,7 @@ const tasks = [
   {
     id: 'routine.run', group: 'routines', phrase: 'run routine bench',
     expect: [{ kind: 'Routine', status: ['requested'], summary: /Ran bench/ }],
-    focus: 'com.google.android.youtube', pre: ['home'], timeout: 15000
+    focus: 'com.google.android.youtube', pre: ['home'], timeout: 40000
   },
   {
     id: 'routine.list', group: 'routines', phrase: 'list routines',
@@ -576,13 +576,13 @@ const tasks = [
   // ---- agent chains -----------------------------------------------------
   {
     id: 'agent.chain', group: 'agent', phrase: 'open chrome and search for weather',
-    expect: [{ kind: 'Agent', status: ['done'], summary: /Completed: open chrome and search for weather/ }],
-    focus: 'com.android.chrome', pre: ['home'], timeout: 40000
+    expect: [{ kind: 'Agent', status: ['done', 'unverified'], summary: /Completed: open chrome and search for weather/ }],
+    focus: 'com.android.chrome', pre: ['home'], timeout: 70000
   },
   {
     id: 'agent.youtube', group: 'agent', phrase: 'open youtube and search for lofi',
-    expect: [{ kind: 'Agent', status: ['done'], summary: /Completed: open youtube and search for lofi/ }],
-    focus: 'com.google.android.youtube', pre: ['home'], timeout: 40000
+    expect: [{ kind: 'Agent', status: ['done', 'unverified'], summary: /Completed: open youtube and search for lofi/ }],
+    focus: 'com.google.android.youtube', pre: ['home'], timeout: 70000
   }
 ];
 

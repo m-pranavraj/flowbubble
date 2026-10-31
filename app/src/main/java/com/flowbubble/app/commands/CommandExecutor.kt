@@ -22,6 +22,8 @@ import com.flowbubble.app.agent.AgentPlan
 import com.flowbubble.app.agent.AgentRunner
 import com.flowbubble.app.agent.AgentStep
 import com.flowbubble.app.agent.PlanSource
+import com.flowbubble.app.agent.RiskLevel
+import com.flowbubble.app.agent.SafetyPolicy
 import com.flowbubble.app.capture.ScreenCapture
 import com.flowbubble.app.core.DndRevert
 import com.flowbubble.app.core.HistoryStore
@@ -170,6 +172,9 @@ class CommandExecutor(
 
     private fun record(kind: String, summary: String, status: String) {
         HistoryStore.add(context, kind, summary, status)
+        if (status == "done" || status == "failed" || status == "unverified" || status == "copied") {
+            ui.announce(summary)
+        }
     }
 
     private suspend fun openApp(query: String) {
@@ -890,16 +895,45 @@ class CommandExecutor(
         }
     }
 
-    private fun tap(command: Command.Tap) {
+    private suspend fun tap(command: Command.Tap) {
         val service = FlowAccessibilityService.instance
         if (service == null) {
             accessibilityBlocked("tap on screen")
             return
         }
+        val risk = SafetyPolicy.assessTap(command.target)
+        when (risk.level) {
+            RiskLevel.BLOCKED -> {
+                record("Screen", "Tap ${command.target}", "blocked")
+                ui.showPanel(
+                    PanelContent(
+                        title = "I won't tap that",
+                        body = risk.reason,
+                        actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
+                    )
+                )
+                return
+            }
+            RiskLevel.CONFIRM -> {
+                val approved = confirm(
+                    title = "Tap \u201C${command.target}\u201D?",
+                    body = risk.reason + " FlowBubble will only tap it if you approve.",
+                    approveLabel = "Tap it"
+                )
+                if (!approved) {
+                    record("Screen", "Tap ${command.target}", "cancelled")
+                    return
+                }
+                // The confirmation window holds focus while it closes; let the app
+                // reclaim the screen before resolving the control's label.
+                delay(250)
+            }
+            RiskLevel.SAFE -> Unit
+        }
         val result = if (command.ordinal != null) {
             service.tapOrdinal(command.ordinal)
         } else {
-            service.tapByText(command.target)
+            service.tapByText(command.target, controlsOnly = risk.level != RiskLevel.SAFE)
         }
         if (result.success) {
             val label = result.label ?: command.target
@@ -2456,21 +2490,26 @@ class CommandExecutor(
         val deferred = CompletableDeferred<Boolean>()
         pendingConfirm?.complete(false)
         pendingConfirm = deferred
+        val approve: () -> Unit = {
+            ui.closePanel()
+            deferred.complete(true)
+        }
+        val deny: () -> Unit = {
+            ui.closePanel()
+            deferred.complete(false)
+        }
         ui.showPanel(
             PanelContent(
                 title = title,
                 body = body,
                 dismissible = false,
                 actions = listOf(
-                    PanelAction(approveLabel, primary = true) {
-                        ui.closePanel()
-                        deferred.complete(true)
-                    },
-                    PanelAction("Cancel") {
-                        ui.closePanel()
-                        deferred.complete(false)
-                    }
-                )
+                    PanelAction(approveLabel, primary = true, onClick = approve),
+                    PanelAction("Cancel", onClick = deny)
+                ),
+                voicePrompt = voicePrompt(title, body),
+                onVoiceApprove = approve,
+                onVoiceDeny = deny
             )
         )
         return try {
@@ -2479,6 +2518,9 @@ class CommandExecutor(
             if (pendingConfirm === deferred) pendingConfirm = null
         }
     }
+
+    private fun voicePrompt(title: String, body: String): String =
+        "$title. ${body.take(180)}".replace('\n', ' ')
 
     private fun summarize(text: String) {
         ui.showPanel(

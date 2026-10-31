@@ -9,6 +9,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -111,14 +112,16 @@ class FlowAccessibilityService : AccessibilityService() {
 
     fun captureSelection(): SelectionInfo? {
         val node = focusedEditable() ?: return null
-        val text = node.text?.toString() ?: return null
+        val text = fieldValueOf(node)
         val start = node.textSelectionStart
         val end = node.textSelectionEnd
         if (start < 0 || end < 0 || start > text.length || end > text.length) return null
         return SelectionInfo(text, start, end)
     }
 
-    fun currentFieldText(): String? = focusedEditable()?.text?.toString()
+    fun currentFieldText(): String? = focusedEditable()?.let { fieldValueOf(it) }
+
+    private fun fieldValueOf(node: AccessibilityNodeInfo): String = FieldValue.of(node.text, node.hintText)
 
     fun focusedFieldLabel(): String? {
         val node = focusedEditable() ?: return null
@@ -142,7 +145,7 @@ class FlowAccessibilityService : AccessibilityService() {
         }
         val node = focusedEditable()
             ?: return TextInsertResult.Failed("No text field is focused.")
-        val old = node.text?.toString().orEmpty()
+        val old = fieldValueOf(node)
         return applyText(node, text, old)
     }
 
@@ -156,7 +159,7 @@ class FlowAccessibilityService : AccessibilityService() {
         val node = focusedEditable()
             ?: return TextInsertResult.Failed("No text field is focused. Tap a text field first, then hold the bubble.")
 
-        val old = node.text?.toString().orEmpty()
+        val old = fieldValueOf(node)
         val rawStart = node.textSelectionStart
         val rawEnd = node.textSelectionEnd
         val start = if (rawStart in 0..old.length) rawStart else old.length
@@ -175,7 +178,7 @@ class FlowAccessibilityService : AccessibilityService() {
         }
         val node = focusedEditable()
             ?: return TextInsertResult.Failed("The text field is no longer focused.")
-        val current = node.text?.toString().orEmpty()
+        val current = fieldValueOf(node)
         if (current != expectedFull) {
             copyToClipboard(replacement)
             return TextInsertResult.Copied(
@@ -200,7 +203,7 @@ class FlowAccessibilityService : AccessibilityService() {
         }
         val node = focusedEditable()
             ?: return TextInsertResult.Failed("The text field is no longer focused.")
-        val current = node.text?.toString().orEmpty()
+        val current = fieldValueOf(node)
         if (current != expected) {
             copyToClipboard(replacement)
             return TextInsertResult.Copied(
@@ -221,7 +224,7 @@ class FlowAccessibilityService : AccessibilityService() {
 
     fun undoInsert(previousText: String, expectedNewText: String): Boolean {
         val node = focusedEditable() ?: return false
-        if (node.text?.toString().orEmpty() != expectedNewText) return false
+        if (fieldValueOf(node) != expectedNewText) return false
         return node.performAction(
             AccessibilityNodeInfo.ACTION_SET_TEXT,
             Bundle().apply {
@@ -257,19 +260,31 @@ class FlowAccessibilityService : AccessibilityService() {
         Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 
-    fun tapByText(target: String): TapResult {
+    fun tapByText(target: String, controlsOnly: Boolean = false): TapResult {
         val root = rootInActiveWindow ?: return TapResult(false, note = "I can't see the current screen yet.")
-        val needle = target.trim().lowercase()
-        if (needle.isEmpty()) return TapResult(false, note = "Nothing to tap.")
+        val needle = target.trim()
+        if (SpokenText.fold(needle).isEmpty()) return TapResult(false, note = "Nothing to tap.")
 
         val matches = labeledMatches(root, target)
         if (matches.isEmpty()) return TapResult(false, note = "I couldn't find \"$target\" on this screen.")
-        val chosen = pickMatch(matches, needle) ?: return TapResult(false, note = "I couldn't find \"$target\" on this screen.")
+        val pool = if (controlsOnly) matches.filter { !isEditableMatch(it.node) } else matches
+        if (pool.isEmpty()) {
+            return TapResult(false, note = "I only found text mentioning \"$target\", not a control I can tap.")
+        }
+        val chosen = pickMatch(pool, needle) ?: return TapResult(false, note = "I couldn't find \"$target\" on this screen.")
 
-        val clicked = clickNodeOrAncestor(chosen.value)
-        val label = labelOf(chosen.value) ?: chosen.key
-        return if (clicked) {
-            TapResult(true, label, if (matches.size > 1) "Matched ${matches.size} items." else null)
+        val clicked = clickNodeOrAncestor(chosen.node)
+        val label = labelOf(chosen.node) ?: chosen.key
+        val note = if (pool.size > 1) "Matched ${pool.size} items." else null
+        if (clicked) return TapResult(true, label, note)
+        // List rows often expose a plain label while the touch target is the row itself;
+        // a gesture at the label's center reaches it even without a clickable ancestor.
+        val bounds = Rect()
+        chosen.node.getBoundsInScreen(bounds)
+        return if (bounds.width() > 0 && bounds.height() > 0 &&
+            tapAt(bounds.centerX(), bounds.centerY())
+        ) {
+            TapResult(true, label, note)
         } else {
             TapResult(false, label, "\"$label\" is visible but isn't tappable.")
         }
@@ -281,13 +296,13 @@ class FlowAccessibilityService : AccessibilityService() {
      */
     fun longPressByText(target: String, holdMs: Int = 650): TapResult {
         val root = rootInActiveWindow ?: return TapResult(false, note = "I can't see the current screen yet.")
-        val needle = target.trim().lowercase()
-        if (needle.isEmpty()) return TapResult(false, note = "Nothing to long-press.")
+        val needle = target.trim()
+        if (SpokenText.fold(needle).isEmpty()) return TapResult(false, note = "Nothing to long-press.")
 
         val matches = labeledMatches(root, target)
         val chosen = pickMatch(matches, needle)
             ?: return TapResult(false, note = "I couldn't find \"$target\" on this screen.")
-        val node = chosen.value
+        val node = chosen.node
         if (node.isPassword) return TapResult(false, chosen.key, "That's a password field, so I left it alone.")
         val label = labelOf(node) ?: chosen.key
 
@@ -304,28 +319,55 @@ class FlowAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun labeledMatches(
-        root: AccessibilityNodeInfo,
-        target: String
-    ): LinkedHashMap<String, AccessibilityNodeInfo> {
-        val needle = target.trim().lowercase()
-        val matches = LinkedHashMap<String, AccessibilityNodeInfo>()
-        if (needle.isEmpty()) return matches
+    private data class MatchEntry(val key: String, val node: AccessibilityNodeInfo)
+
+    private fun labeledMatches(root: AccessibilityNodeInfo, target: String): List<MatchEntry> {
+        val needle = target.trim()
+        val matches = ArrayList<MatchEntry>()
+        if (SpokenText.fold(needle).isEmpty()) return matches
         root.findAccessibilityNodeInfosByText(target)?.forEach { node ->
             if (node.isVisibleToUser) {
                 val label = labelOf(node) ?: nearestLabel(node)
-                if (label != null) matches.putIfAbsent(label.lowercase(), node)
+                if (label != null && matches.none { it.node === node }) {
+                    matches.add(MatchEntry(label.lowercase(), node))
+                }
             }
         }
-        if (matches.isEmpty()) collectMatches(root, needle, matches, 0)
+        // The framework search can miss controls that only expose a content
+        // description (icon buttons such as "Send SMS"), so always walk the tree.
+        collectMatches(root, needle, matches, 0)
         return matches
     }
 
-    private fun pickMatch(
-        matches: LinkedHashMap<String, AccessibilityNodeInfo>,
-        needle: String
-    ): Map.Entry<String, AccessibilityNodeInfo>? =
-        matches.entries.firstOrNull { it.key == needle } ?: matches.entries.minByOrNull { it.key.length }
+    private fun pickMatch(matches: List<MatchEntry>, needle: String): MatchEntry? {
+        val candidates = matches.map {
+            TapChoice.Candidate(it.key, canTap(it.node), isEditableMatch(it.node))
+        }
+        val index = TapChoice.best(candidates, needle) ?: return null
+        return matches[index]
+    }
+
+    private fun canTap(node: AccessibilityNodeInfo): Boolean {
+        var current: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (current != null && depth < 8) {
+            if (current.isClickable) return true
+            current = current.parent
+            depth++
+        }
+        return false
+    }
+
+    private fun isEditableMatch(node: AccessibilityNodeInfo): Boolean {
+        var current: AccessibilityNodeInfo? = node
+        var depth = 0
+        while (current != null && depth < 8) {
+            if (current.isEditable) return true
+            current = current.parent
+            depth++
+        }
+        return false
+    }
 
     fun tapOrdinal(ordinal: Int): TapResult {
         val root = rootInActiveWindow ?: return TapResult(false, note = "I can't see the current screen yet.")
@@ -360,13 +402,14 @@ class FlowAccessibilityService : AccessibilityService() {
     private fun collectMatches(
         node: AccessibilityNodeInfo,
         needle: String,
-        out: MutableMap<String, AccessibilityNodeInfo>,
+        out: MutableList<MatchEntry>,
         depth: Int,
     ) {
         if (depth > 40 || out.size >= 30) return
         val label = labelOf(node)
-        if (!label.isNullOrBlank() && node.isVisibleToUser && label.lowercase().contains(needle)) {
-            out.putIfAbsent(label.lowercase(), node)
+        if (!label.isNullOrBlank() && node.isVisibleToUser && SpokenText.matches(label, needle) &&
+            out.none { it.node === node }) {
+            out.add(MatchEntry(label.lowercase(), node))
         }
         for (i in 0 until node.childCount) {
             node.getChild(i)?.let { collectMatches(it, needle, out, depth + 1) }
@@ -638,17 +681,22 @@ class FlowAccessibilityService : AccessibilityService() {
         }
         val node = focusedEditable()
             ?: return FieldActionOutcome.Blocked("No text field is focused, so there's nothing for me to clear.")
-        val old = node.text?.toString().orEmpty()
+        val old = fieldValueOf(node)
         if (old.isEmpty()) return FieldActionOutcome.Done("The field was already empty")
         val args = Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
         }
-        node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        val after = focusedEditable()?.text?.toString().orEmpty()
-        return if (after.isEmpty()) {
-            FieldActionOutcome.Done("Cleared the field")
-        } else {
-            FieldActionOutcome.Blocked("This field didn't clear, so I left your text alone.")
+        val accepted = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        SystemClock.sleep(120)
+        // The view updates after the node's text snapshot; refresh the node we wrote to
+        // before concluding the clear failed. An empty field may expose its hint as text,
+        // which fieldValueOf treats as empty.
+        val own = if (node.refresh()) fieldValueOf(node) else ""
+        val focused = focusedEditable()?.let { fieldValueOf(it) }.orEmpty()
+        return when {
+            own.isEmpty() -> FieldActionOutcome.Done("Cleared the field")
+            focused.isEmpty() && accepted -> FieldActionOutcome.Done("Cleared the field")
+            else -> FieldActionOutcome.Blocked("This field didn't clear, so I left your text alone.")
         }
     }
 
@@ -658,7 +706,7 @@ class FlowAccessibilityService : AccessibilityService() {
      */
     private fun selectAllText(node: AccessibilityNodeInfo): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
-        val length = node.text?.toString()?.length ?: 0
+        val length = fieldValueOf(node).length
         if (length == 0) return false
         val args = Bundle().apply {
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
@@ -676,7 +724,7 @@ class FlowAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             return FieldActionOutcome.Blocked("Selecting all the text needs Android 9 or newer.")
         }
-        if ((node.text?.toString()?.length ?: 0) == 0) {
+        if (fieldValueOf(node).length == 0) {
             return FieldActionOutcome.Blocked("This field is empty, so there's nothing to select.")
         }
         if (!selectAllText(node)) {

@@ -476,8 +476,15 @@ class AgentRunner(
         }
 
         delay(160)
-        val current = service.currentFieldText().orEmpty()
-        if (!current.contains(action.text.take(60))) {
+        val snippet = action.text.take(60)
+        var current = service.currentFieldText().orEmpty()
+        var confirmed = TextEvidence.confirmed(snippet, current, service::hasVisibleText)
+        if (!confirmed) {
+            delay(400)
+            current = service.currentFieldText().orEmpty()
+            confirmed = TextEvidence.confirmed(snippet, current, service::hasVisibleText)
+        }
+        if (!confirmed) {
             return StepOutcome(false, note = "The text didn't appear in the field, so I stopped.")
         }
         LastActionMemory.rememberEdit(inserted.previousText, inserted.newText, fieldLabel)
@@ -1055,21 +1062,26 @@ class AgentRunner(
     private suspend fun confirm(title: String, body: String): Boolean {
         val deferred = CompletableDeferred<Boolean>()
         pendingConfirm.set(deferred)
+        val approve: () -> Unit = {
+            ui.closePanel()
+            deferred.complete(true)
+        }
+        val deny: () -> Unit = {
+            ui.closePanel()
+            deferred.complete(false)
+        }
         ui.showPanel(
             PanelContent(
                 title = title,
                 body = body,
                 dismissible = false,
                 actions = listOf(
-                    PanelAction("Approve", primary = true) {
-                        ui.closePanel()
-                        deferred.complete(true)
-                    },
-                    PanelAction("Cancel") {
-                        ui.closePanel()
-                        deferred.complete(false)
-                    }
-                )
+                    PanelAction("Approve", primary = true, onClick = approve),
+                    PanelAction("Cancel", onClick = deny)
+                ),
+                voicePrompt = "$title. ${body.take(180)}".replace('\n', ' '),
+                onVoiceApprove = approve,
+                onVoiceDeny = deny
             )
         )
         return try {
@@ -1142,6 +1154,10 @@ class AgentRunner(
                     kind.historyStatus()
                 )
                 val body = trace?.renderBody()?.takeIf { it.isNotBlank() } ?: outcome.summary
+                ui.announce(
+                    if (kind == OutcomeKind.COMPLETED) "Done. ${outcome.summary.take(140)}"
+                    else "Finished with notes. ${outcome.summary.take(140)}"
+                )
                 ui.showPanel(
                     PanelContent(
                         title = if (kind == OutcomeKind.COMPLETED) "Task complete" else "Finished with notes",
@@ -1154,6 +1170,7 @@ class AgentRunner(
             }
             is AgentOutcome.Failed -> {
                 HistoryStore.add(context, "Agent", "Stopped: ${goal.take(70)}", OutcomeKind.FAILED.historyStatus())
+                ui.announce("I stopped. ${outcome.summary.take(140)}")
                 val completed = outcome.trace?.steps?.count { it.verified && !it.informational } ?: 0
                 val body = buildString {
                     append(outcome.summary)
@@ -1179,6 +1196,7 @@ class AgentRunner(
             }
             AgentOutcome.Cancelled -> {
                 HistoryStore.add(context, "Agent", "Cancelled: ${goal.take(70)}", OutcomeKind.AWAITING_USER.historyStatus())
+                ui.announce("Cancelled.")
                 ui.showPanel(PanelContent(title = "Cancelled", autoDismissMs = 1200))
             }
         }

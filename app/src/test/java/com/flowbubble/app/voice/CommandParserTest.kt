@@ -358,4 +358,34 @@ class CommandParserTest {
             CommandParser.parse("search for protein powder")
         )
     }
+
+    @Test
+    fun `close and cancel dismiss whatever is showing`() {
+        for (phrase in listOf("close", "close it", "cancel", "cancel it")) {
+            assertEquals(phrase, Command.Back, CommandParser.parse(phrase))
+        }
+    }
+
+    @Test
+    fun `close inside a sentence is still dictation`() {
+        assertNull(CommandParser.parse("close the door on your way out"))
+    }
+
+    @Test
+    fun `send it taps the visible send control instead of typing`() {
+        for (phrase in listOf(
+            "send it", "send this", "send now", "send the message",
+            "send this message", "send the email", "press send", "hit send"
+        )) {
+            assertEquals(phrase, Command.Tap("send"), CommandParser.parse(phrase))
+        }
+    }
+
+    @Test
+    fun `sending to a named person is still a message command`() {
+        assertEquals(
+            Command.SendMessage("Priya", "I'll be there"),
+            CommandParser.parse("text Priya saying I'll be there")
+        )
+    }
 }

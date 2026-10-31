@@ -439,6 +439,11 @@ object CommandParser {
             "back", "go back" -> return Command.Back
             "home", "go home" -> return Command.Home
             "recents", "recent apps", "open recents" -> return Command.Recents
+            "close", "close it", "close this", "cancel", "cancel it" -> return Command.Back
+            // The send control is tapped through the normal confirmation gate; this never
+            // submits silently and never turns a bare "send it" into more typed text.
+            "send it", "send this", "send now", "send the message", "send this message",
+            "send the email", "send this email", "press send", "hit send" -> return Command.Tap("send")
         }
 
         if (screenshotRegex.matches(text)) return Command.Screenshot

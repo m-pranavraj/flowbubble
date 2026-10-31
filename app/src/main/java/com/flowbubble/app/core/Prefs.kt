@@ -39,6 +39,11 @@ object Prefs {
     fun setAgentLlmEnabled(context: Context, value: Boolean) =
         sp(context).edit { putBoolean("agent_llm", value) }
 
+    fun handsFreeEnabled(context: Context): Boolean = sp(context).getBoolean("hands_free", false)
+
+    fun setHandsFreeEnabled(context: Context, value: Boolean) =
+        sp(context).edit { putBoolean("hands_free", value) }
+
     fun setAiConfig(context: Context, baseUrl: String, apiKey: String, model: String) =
         sp(context).edit {
             putString("ai_base_url", baseUrl.trim())

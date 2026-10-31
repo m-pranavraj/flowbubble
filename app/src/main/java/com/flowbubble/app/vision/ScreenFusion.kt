@@ -74,10 +74,14 @@ object ScreenFusion {
         targets.forEach { target ->
             val score = TextMatcher.score(normalizedQuery, target.label)
             if (score == 0) return@forEach
+            // A spoken phrase often appears both as typed text in a field and as the
+            // control the user named (a recipient, a suggestion, a result). The control
+            // wins; the field is only tapped when nothing else matches.
             val tieBreak = when {
-                target.source == TargetSource.ACCESSIBILITY && target.clickable -> 3
-                target.editable -> 2
-                target.source == TargetSource.ACCESSIBILITY -> 1
+                target.source == TargetSource.ACCESSIBILITY && target.clickable && !target.editable -> 4
+                target.source == TargetSource.ACCESSIBILITY && !target.editable -> 3
+                target.source == TargetSource.ACCESSIBILITY -> 2
+                target.editable -> 1
                 else -> 0
             }
             if (score > bestScore || (score == bestScore && tieBreak > bestTieBreak)) {

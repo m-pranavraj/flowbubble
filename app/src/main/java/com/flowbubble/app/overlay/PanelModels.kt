@@ -13,7 +13,10 @@ data class PanelContent(
     val dismissible: Boolean = true,
     val autoDismissMs: Long? = null,
     val scrollable: Boolean = false,
-    val copyText: String? = null
+    val copyText: String? = null,
+    val voicePrompt: String? = null,
+    val onVoiceApprove: (() -> Unit)? = null,
+    val onVoiceDeny: (() -> Unit)? = null
 )
 
 interface OverlayUi {
@@ -21,4 +24,7 @@ interface OverlayUi {
     fun closePanel()
     fun hideForScreenRead() {}
     fun restoreAfterScreenRead() {}
+
+    /** Speaks a short status line when hands-free mode is active. Silent otherwise. */
+    fun announce(text: String) {}
 }
