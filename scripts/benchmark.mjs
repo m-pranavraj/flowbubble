@@ -138,8 +138,7 @@ function accessibilityBound() {
  * The order is not cosmetic. A service that has just been rebound learns the foreground app from the
  * next window event, so waking the process comes first, then a real foreground change, then the ask.
  */
-function accessibilityLive() {
-  if (!accessibilityBound()) return false;
+function accessibilityLive(timeoutMs = 20000) {
   const probe = () => {
     shell('logcat -c', { allowFail: true });
     shell(`am broadcast -p ${PKG} -a ${PKG}.DEBUG_SIMULATE --es probe windows`, { allowFail: true, timeout: 15000 });
@@ -148,12 +147,19 @@ function accessibilityLive() {
     const match = log.match(/probe service=true active=(\S+) foreground=(\S+)/);
     return Boolean(match) && match[2] !== 'null';
   };
+  if (!accessibilityBound()) return false;
   probe();
   shell('input keyevent KEYCODE_HOME', { allowFail: true });
   sleep(1000);
   shell('monkey -p com.google.android.deskclock 1', { allowFail: true });
   sleep(1500);
-  const live = probe();
+  const deadline = Date.now() + timeoutMs;
+  let live = probe();
+  while (!live && Date.now() < deadline) {
+    shell('input keyevent KEYCODE_HOME', { allowFail: true });
+    sleep(900);
+    live = probe();
+  }
   shell('input keyevent KEYCODE_HOME', { allowFail: true });
   return live;
 }
@@ -253,6 +259,22 @@ function rebindAccessibility() {
   shell(`settings put secure enabled_accessibility_services ${PKG}/${PKG}.access.FlowAccessibilityService`, { allowFail: true });
   shell('settings put secure accessibility_enabled 1', { allowFail: true });
   sleep(6000);
+}
+
+/*
+ * Rebinding is retried as a whole, not merely re-checked. Once Android parks a service in
+ * "Crashed services" only a fresh change to enabled_accessibility_services moves it again, so a probe
+ * loop alone can wait forever on a connection that will never come back.
+ */
+function awaitAccessibilityEvents(attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    rebindAccessibility();
+    if (accessibilityLive()) return true;
+  }
+  throw new Error(
+    'device is not ready: the accessibility service never delivered events after ' +
+    `${attempts} rebinds, so no verified task could pass`
+  );
 }
 
 function grantPrerequisites() {
@@ -781,8 +803,7 @@ function installAndPrepare() {
   sleep(1500);
   // A force-stop prunes enabled_accessibility_services, so the service is only re-enabled once the
   // process is back up; writing it before the launch races with that pruning and unbinds again.
-  rebindAccessibility();
-  waitFor('accessibility events', accessibilityLive, 60000);
+  awaitAccessibilityEvents();
   // The bubble is a user choice the app honours on launch, and OverlayService is not exported, so
   // only the app itself may start it.
   if (!enableBubble()) {
