@@ -6,6 +6,8 @@ A permission-gated voice and vision layer for Android. A floating bubble holds t
 
 This repository is a working Android app (Kotlin, Jetpack Compose, custom overlay windows), not a mockup. It uses documented Android capabilities only: overlay windows, an accessibility service, MediaProjection screen capture with on-device OCR, a notification listener, a microphone foreground service, runtime permissions, intents, and a Quick Settings tile. There is no root, no hidden privilege escalation, and no attempt to bypass lock screens, authentication, or passwords.
 
+[about.md](about.md) is the full state of the project in one file: what is built, what is not built, what should be improved in what exists, and which advanced features are possible next — with the evidence behind each claim.
+
 ## What is built
 
 - Floating, draggable bubble above other apps with hold-to-talk, live transcript, and a Stop action in the ongoing notification.
