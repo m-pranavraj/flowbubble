@@ -142,6 +142,27 @@ object CommandParser {
     )
     private val messageSplitRegex =
         Regex("\\s+(?:saying|that says|to say)\\s+", RegexOption.IGNORE_CASE)
+    /**
+     * A messaging verb is followed by either a recipient or the text itself, and the first word is
+     * the only evidence. These openers are never a person's name, so "message hello there" is the
+     * body "hello there" rather than a draft to someone called Hello.
+     */
+    private val bodyOpeners = setOf(
+        "hi", "hello", "hey", "yo", "thanks", "thank", "sorry", "ok", "okay", "yes", "no",
+        "good", "great", "running", "leaving", "coming", "almost", "just", "still", "already",
+        "on", "in", "at", "behind", "outside", "stuck", "busy", "late"
+    )
+    /**
+     * These stand in for a person the user never named, so there is no recipient to resolve and no
+     * verb to strip either. "message me when you reach" is one dictated sentence, and stripping
+     * "message" from it would corrupt what the user actually said.
+     */
+    private val vagueRecipients = setOf(
+        "me", "myself", "you", "your", "yours", "him", "his", "her", "hers", "it", "its", "us",
+        "our", "ours", "them", "their", "theirs", "someone", "somebody", "anyone", "anybody",
+        "everyone", "everybody", "nobody", "the", "a", "an", "this", "that", "these", "those",
+        "when", "what", "where", "who", "why", "how", "and", "but", "or", "because", "if", "so"
+    )
     private val callRegex = Regex("^(?:call|dial)\\s+(.+)$", RegexOption.IGNORE_CASE)
     private val navigateRegex =
         Regex("^(?:navigate|directions|take me)\\s+(?:to\\s+)?(.+)$", RegexOption.IGNORE_CASE)
@@ -158,7 +179,7 @@ object CommandParser {
         "^what does (?:this|the) (?:page|screen) say(?:\\s+about\\s+(.+))?$",
         RegexOption.IGNORE_CASE
     )
-    private val typeRegex = Regex("^type\\s+(.+)$", RegexOption.IGNORE_CASE)
+    private val typeRegex = Regex("^(?:type|dictate|write)\\s+(.+)$", RegexOption.IGNORE_CASE)
     private val webSearchRegex = Regex(
         "^(?:search\\s+(?:the\\s+)?(?:web|internet|online)(?:\\s+for)?|google\\s+for|look\\s+up)\\s+(.+)$",
         RegexOption.IGNORE_CASE
@@ -484,9 +505,10 @@ object CommandParser {
         }
 
         messageRegex.matchEntire(text)?.let { match ->
-            parseMessageRest(match.groupValues[1])?.let { return it }
             // "WhatsApp Pranav" has no body to send, so it can only mean the existing conversation.
-            if (lower.startsWith("whatsapp ")) {
+            val bareNameOpensChat = lower.startsWith("whatsapp ")
+            parseMessageRest(match.groupValues[1], bareNameOpensChat)?.let { return it }
+            if (bareNameOpensChat) {
                 val only = cleanContactName(match.groupValues[1])
                 if (only.isNotBlank() && !only.contains(' ') && only.length <= MAX_CONTACT_CHARS) {
                     return Command.OpenChat(only, "whatsapp")
@@ -627,26 +649,27 @@ object CommandParser {
     private fun cleanRoutineName(raw: String): String =
         raw.trim().trimEnd('.', '!', '?', ',').take(40).trim()
 
-    private fun parseMessageRest(rawRest: String): Command.SendMessage? {
+    private fun parseMessageRest(rawRest: String, bareNameOpensChat: Boolean = false): Command? {
         var rest = rawRest.trim()
         messageRegex.matchEntire(rest)?.let { rest = it.groupValues[1].trim() }
         if (rest.isBlank()) return null
         val split = messageSplitRegex.split(rest, limit = 2)
         val contact: String
-        val message: String
+        val body: String
         if (split.size == 2) {
             contact = split[0].trim()
-            message = split[1].trim()
+            body = split[1].trim()
         } else {
             val space = rest.indexOf(' ')
-            if (space <= 0) return null
+            if (space < 0) return if (bareNameOpensChat) null else Command.TypeText(rest)
             contact = rest.substring(0, space).trim()
-            message = rest.substring(space + 1).trim()
+            body = rest.substring(space + 1).trim()
         }
-        return if (contact.isNotBlank() && message.isNotBlank()) {
-            Command.SendMessage(contact, message)
-        } else {
-            null
+        if (contact.isBlank() || body.isBlank()) return null
+        return when (contact.lowercase()) {
+            in bodyOpeners -> Command.TypeText(rest)
+            in vagueRecipients -> null
+            else -> Command.SendMessage(contact, body)
         }
     }
 

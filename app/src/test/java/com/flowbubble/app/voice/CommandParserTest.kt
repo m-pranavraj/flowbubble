@@ -388,4 +388,36 @@ class CommandParserTest {
             CommandParser.parse("text Priya saying I'll be there")
         )
     }
+
+    @Test
+    fun `a message verb with no recipient inserts only the body`() {
+        assertEquals(Command.TypeText("hi"), CommandParser.parse("message hi"))
+        assertEquals(Command.TypeText("hello there"), CommandParser.parse("message hello there"))
+        assertEquals(Command.TypeText("hello there"), CommandParser.parse("write hello there"))
+    }
+
+    @Test
+    fun `an explicit recipient still prepares a draft`() {
+        assertEquals(Command.SendMessage("Priya", "hi"), CommandParser.parse("message Priya saying hi"))
+    }
+
+    @Test
+    fun `typing the word message keeps it in the payload`() {
+        assertEquals(Command.TypeText("message hi"), CommandParser.parse("type message hi"))
+    }
+
+    @Test
+    fun `a pronoun after the verb is dictated as one sentence`() {
+        assertNull(CommandParser.parse("message me when you reach"))
+    }
+
+    @Test
+    fun `a sentence about messaging is not a text command`() {
+        assertNull(CommandParser.parse("I want to message my manager tomorrow"))
+    }
+
+    @Test
+    fun `a name and a body after whatsapp is still a draft`() {
+        assertEquals(Command.SendMessage("Arjun", "running late"), CommandParser.parse("whatsapp Arjun running late"))
+    }
 }
