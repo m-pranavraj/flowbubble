@@ -101,7 +101,7 @@ function newestTime() {
 }
 
 function focus() {
-  const line = shell('dumpsys window | grep -m1 mCurrentFocus', { allowFail: true, timeout: 15000 });
+  const line = shell('dumpsys window 2>/dev/null | grep -m1 mCurrentFocus', { allowFail: true, timeout: 15000 });
   const match = line.match(/mCurrentFocus=Window\{[^}]*?\s([a-zA-Z0-9_.]+)\//);
   return match ? match[1] : '';
 }
@@ -123,7 +123,39 @@ function mediaVolume() {
 
 function accessibilityBound() {
   const out = shell('dumpsys accessibility', { allowFail: true, timeout: 20000 });
-  return out.includes(LABEL);
+  if (!out.includes(LABEL)) return false;
+  // A service whose process died stays listed under "Bound services" while Android queues it in
+  // "Crashed services" and stops delivering events, so the label alone proves nothing.
+  const crashed = out.split('\n').find((line) => line.trim().startsWith('Crashed services:')) || '';
+  return !crashed.includes(PKG);
+}
+
+/*
+ * The check that matters is end to end: change what is foreground, ask the running service what it
+ * now sees, and require a real package back. Everything FlowBubble verifies depends on these events,
+ * so a dead connection has to fail readiness rather than quietly fail every later task.
+ *
+ * The order is not cosmetic. A service that has just been rebound learns the foreground app from the
+ * next window event, so waking the process comes first, then a real foreground change, then the ask.
+ */
+function accessibilityLive() {
+  if (!accessibilityBound()) return false;
+  const probe = () => {
+    shell('logcat -c', { allowFail: true });
+    shell(`am broadcast -p ${PKG} -a ${PKG}.DEBUG_SIMULATE --es probe windows`, { allowFail: true, timeout: 15000 });
+    sleep(1800);
+    const log = sh(ADB, ['-s', DEVICE, 'logcat', '-d', '-s', 'FlowBubbleDebug'], { allowFail: true, timeout: 20000 });
+    const match = log.match(/probe service=true active=(\S+) foreground=(\S+)/);
+    return Boolean(match) && match[2] !== 'null';
+  };
+  probe();
+  shell('input keyevent KEYCODE_HOME', { allowFail: true });
+  sleep(1000);
+  shell('monkey -p com.google.android.deskclock 1', { allowFail: true });
+  sleep(1500);
+  const live = probe();
+  shell('input keyevent KEYCODE_HOME', { allowFail: true });
+  return live;
 }
 
 function overlayRunning() {
@@ -209,8 +241,24 @@ function waitFor(what, probe, timeoutMs) {
   throw new Error(`device is not ready: ${what} did not come up within ${timeoutMs}ms`);
 }
 
+/*
+ * Writing back the same component string changes nothing, and Android keeps a service whose process
+ * died — which every force-stop and every reinstall does — in "Crashed services" and stops sending
+ * it events. Only an actual change to the enabled-services setting makes it re-register, so the row
+ * is deleted first. Toggling accessibility_enabled on its own was tried and left the entry stuck.
+ */
+function rebindAccessibility() {
+  shell('settings delete secure enabled_accessibility_services', { allowFail: true });
+  sleep(3000);
+  shell(`settings put secure enabled_accessibility_services ${PKG}/${PKG}.access.FlowAccessibilityService`, { allowFail: true });
+  shell('settings put secure accessibility_enabled 1', { allowFail: true });
+  sleep(6000);
+}
+
 function grantPrerequisites() {
-  for (const permission of ['RECORD_AUDIO', 'POST_NOTIFICATIONS']) {
+  // A fresh install has no runtime grants at all, and every communication task would otherwise fail
+  // for the same reason: FlowBubble correctly reports the missing permission instead of guessing.
+  for (const permission of ['RECORD_AUDIO', 'POST_NOTIFICATIONS', 'READ_CONTACTS']) {
     shell(`pm grant ${PKG} android.permission.${permission}`, { allowFail: true });
   }
   shell(`appops set ${PKG} SYSTEM_ALERT_WINDOW allow`, { allowFail: true });
@@ -312,12 +360,16 @@ function runTask(task) {
   }
 
   if (task.focus) {
+    // Some images answer "open settings" with SettingsIntelligence rather than com.android.settings.
+    // Both are the Settings app, so a task may list every package that counts as arriving.
+    const wanted = Array.isArray(task.focus) ? task.focus : [task.focus];
+    const arrived = () => wanted.some((name) => focus().includes(name));
     result.focus = focus();
-    if (!result.focus.includes(task.focus)) {
-      const ok = waitFocus(task.focus, 6000);
+    if (!arrived()) {
+      const ok = wanted.some((name) => waitFocus(name, 4000));
       result.focus = focus();
       if (!ok) {
-        result.note = `expected foreground ${task.focus}`;
+        result.note = `expected foreground ${wanted.join(' or ')}`;
         return result;
       }
     }
@@ -377,7 +429,7 @@ const tasks = [
   {
     id: 'app.settings', group: 'apps', phrase: 'open settings',
     expect: [{ kind: 'System', status: ['done'], summary: /Opened Android settings|Opened Settings/ }],
-    focus: 'com.android.settings', pre: ['home']
+    focus: ['com.android.settings', 'com.google.android.settings.intelligence'], pre: ['home']
   },
   {
     id: 'app.playstore', group: 'apps', phrase: 'open play store',
@@ -729,9 +781,8 @@ function installAndPrepare() {
   sleep(1500);
   // A force-stop prunes enabled_accessibility_services, so the service is only re-enabled once the
   // process is back up; writing it before the launch races with that pruning and unbinds again.
-  shell(`settings put secure enabled_accessibility_services ${PKG}/${PKG}.access.FlowAccessibilityService`, { allowFail: true });
-  shell('settings put secure accessibility_enabled 1', { allowFail: true });
-  waitFor('accessibility service', accessibilityBound, 20000);
+  rebindAccessibility();
+  waitFor('accessibility events', accessibilityLive, 60000);
   // The bubble is a user choice the app honours on launch, and OverlayService is not exported, so
   // only the app itself may start it.
   if (!enableBubble()) {
