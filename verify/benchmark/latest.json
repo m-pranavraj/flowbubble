@@ -1,5 +1,5 @@
 {
-  "stamp": "2026-10-30T11-30-16",
+  "stamp": "2026-11-01T11-12-20",
   "results": [
     {
       "id": "app.youtube",
@@ -25,20 +25,20 @@
       "id": "app.gmail",
       "group": "apps",
       "phrase": "open gmail",
-      "verdict": "FAIL",
-      "observed": "App / Open Gmail / unverified",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "App / Opened Gmail / done",
+      "note": "",
+      "focus": "com.google.android.gm",
       "volume": null
     },
     {
       "id": "app.camera",
       "group": "apps",
       "phrase": "open camera",
-      "verdict": "FAIL",
-      "observed": "App / Open Camera / unverified",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "App / Opened Camera / done",
+      "note": "",
+      "focus": "com.android.camera2",
       "volume": null
     },
     {
@@ -55,40 +55,40 @@
       "id": "app.settings",
       "group": "apps",
       "phrase": "open settings",
-      "verdict": "FAIL",
+      "verdict": "PASS",
       "observed": "System / Opened Android settings / done",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "note": "",
+      "focus": "com.android.settings",
       "volume": null
     },
     {
       "id": "app.playstore",
       "group": "apps",
       "phrase": "open play store",
-      "verdict": "FAIL",
-      "observed": "App / Open Play Store / unverified",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "App / Opened Play Store / done",
+      "note": "",
+      "focus": "com.android.vending",
       "volume": null
     },
     {
       "id": "app.photos",
       "group": "apps",
       "phrase": "open photos",
-      "verdict": "FAIL",
-      "observed": "App / Open Photos / unverified",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "App / Opened Photos / done",
+      "note": "",
+      "focus": "com.google.android.apps.photos",
       "volume": null
     },
     {
       "id": "app.maps",
       "group": "apps",
       "phrase": "open maps",
-      "verdict": "FAIL",
-      "observed": "App / Open Maps / unverified",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "App / Opened Maps / done",
+      "note": "",
+      "focus": "com.google.android.apps.maps",
       "volume": null
     },
     {
@@ -105,9 +105,9 @@
       "id": "app.typo",
       "group": "apps",
       "phrase": "opem youube",
-      "verdict": "FAIL",
+      "verdict": "PASS",
       "observed": "App / Look up \"opem youube\" / did you mean YouTube",
-      "note": "expected entry never appeared",
+      "note": "",
       "focus": "",
       "volume": null
     },
@@ -115,10 +115,10 @@
       "id": "app.hindi",
       "group": "apps",
       "phrase": "यूट्यूब खोलो",
-      "verdict": "FAIL",
-      "observed": "App / Open YouTube / unverified",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "App / Opened YouTube / done",
+      "note": "",
+      "focus": "com.google.android.youtube",
       "volume": null
     },
     {
@@ -176,7 +176,7 @@
       "group": "search",
       "phrase": "search lofi in youtube",
       "verdict": "FAIL",
-      "observed": "Search / Search YouTube for \"lofi\" / not found",
+      "observed": "Agent / Stopped: Search YouTube for “lofi” / failed | Search / Search YouTube for \"lofi\" / requested",
       "note": "expected entry never appeared",
       "focus": "",
       "volume": null
@@ -195,9 +195,9 @@
       "id": "search.screen",
       "group": "search",
       "phrase": "search this screen for weather",
-      "verdict": "FAIL",
+      "verdict": "PASS",
       "observed": "Agent / Completed: Search for “weather” / done",
-      "note": "expected entry never appeared",
+      "note": "",
       "focus": "",
       "volume": null
     },
@@ -216,7 +216,7 @@
       "group": "search",
       "phrase": "youtube mein lofi khojo",
       "verdict": "FAIL",
-      "observed": "Search / Search YouTube for \"lofi\" / unverified",
+      "observed": "Agent / Stopped: Search YouTube for “lofi” / failed | Search / Search YouTube for \"lofi\" / requested",
       "note": "expected entry never appeared",
       "focus": "",
       "volume": null
@@ -255,10 +255,10 @@
       "id": "screen.back",
       "group": "screen",
       "phrase": "go back",
-      "verdict": "FAIL",
+      "verdict": "PASS",
       "observed": "Screen / Went back / done",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "note": "",
+      "focus": "com.android.settings",
       "volume": null
     },
     {
@@ -275,10 +275,10 @@
       "id": "screen.home",
       "group": "screen",
       "phrase": "go home",
-      "verdict": "FAIL",
+      "verdict": "PASS",
       "observed": "Screen / Went home / done",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "note": "",
+      "focus": "com.google.android.apps.nexuslauncher",
       "volume": null
     },
     {
@@ -286,7 +286,7 @@
       "group": "screen",
       "phrase": "read this screen",
       "verdict": "PASS",
-      "observed": "Read / Read 132 characters via accessibility / done",
+      "observed": "Read / Read 344 characters via accessibility / done",
       "note": "",
       "focus": "",
       "volume": null
@@ -315,9 +315,9 @@
       "id": "screen.readHindi",
       "group": "screen",
       "phrase": "स्क्रीन पढ़ो",
-      "verdict": "FAIL",
-      "observed": "no new trace entries",
-      "note": "expected entry never appeared",
+      "verdict": "PASS",
+      "observed": "Read / Read 344 characters via accessibility / done",
+      "note": "",
       "focus": "",
       "volume": null
     },
@@ -335,10 +335,10 @@
       "id": "screen.backHindi",
       "group": "screen",
       "phrase": "पीछे जाओ",
-      "verdict": "FAIL",
-      "observed": "Screen / Went back / done | Screen / Tapped Battery / done",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "Screen / Went back / done",
+      "note": "",
+      "focus": "com.android.settings",
       "volume": null
     },
     {
@@ -399,7 +399,7 @@
       "observed": "Volume / Media volume up / done",
       "note": "",
       "focus": "",
-      "volume": "1 -> 2"
+      "volume": "5 -> 6"
     },
     {
       "id": "sys.volumeDown",
@@ -409,7 +409,7 @@
       "observed": "Volume / Media volume down / done",
       "note": "",
       "focus": "",
-      "volume": "2 -> 1"
+      "volume": "6 -> 5"
     },
     {
       "id": "sys.volumeHindi",
@@ -419,7 +419,7 @@
       "observed": "Volume / Media volume up / done",
       "note": "",
       "focus": "",
-      "volume": "1 -> 2"
+      "volume": "5 -> 6"
     },
     {
       "id": "sys.mute",
@@ -429,7 +429,7 @@
       "observed": "Volume / Muted media / done",
       "note": "",
       "focus": "",
-      "volume": "2 -> 0"
+      "volume": "6 -> 0"
     },
     {
       "id": "sys.unmute",
@@ -486,7 +486,7 @@
       "group": "system",
       "phrase": "read notifications",
       "verdict": "PASS",
-      "observed": "Notifications / Read 2 notifications / done",
+      "observed": "Notifications / Read 1 notifications / done",
       "note": "",
       "focus": "",
       "volume": null
@@ -495,9 +495,9 @@
       "id": "sys.clearNotifications",
       "group": "system",
       "phrase": "clear notifications",
-      "verdict": "FAIL",
-      "observed": "no new trace entries",
-      "note": "expected entry never appeared",
+      "verdict": "PASS",
+      "observed": "Notifications / Clear notifications / nothing found",
+      "note": "",
       "focus": "",
       "volume": null
     },
@@ -505,49 +505,49 @@
       "id": "comms.call",
       "group": "comms",
       "phrase": "call pranav",
-      "verdict": "FAIL",
-      "observed": "Call / Dialer opened for Pranav / awaiting user | Notifications / Clear notifications / awaiting user",
-      "note": "expected foreground com.google.android.dialer",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "Call / Dialer opened for Pranav / awaiting user",
+      "note": "",
+      "focus": "com.google.android.dialer",
       "volume": null
     },
     {
       "id": "comms.chat",
       "group": "comms",
       "phrase": "chat with pranav",
-      "verdict": "FAIL",
-      "observed": "no new trace entries",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "Chat / Opened Pranav's chat on Messages / done | Chat / Open Pranav on Messages / requested",
+      "note": "",
+      "focus": "com.google.android.apps.messaging",
       "volume": null
     },
     {
       "id": "comms.chatOf",
       "group": "comms",
       "phrase": "go to chat of pranav",
-      "verdict": "FAIL",
-      "observed": "Chat / Opened Messages for Pranav / unverified",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "Chat / Opened Pranav's chat on Messages / done | Chat / Open Pranav on Messages / requested",
+      "note": "",
+      "focus": "com.google.android.apps.messaging",
       "volume": null
     },
     {
       "id": "comms.chatHindi",
       "group": "comms",
       "phrase": "प्रणव से चैट करो",
-      "verdict": "FAIL",
-      "observed": "no new trace entries",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "Chat / Opened Pranav's chat on Messages / done | Chat / Open Pranav on Messages / requested",
+      "note": "",
+      "focus": "com.google.android.apps.messaging",
       "volume": null
     },
     {
       "id": "comms.message",
       "group": "comms",
       "phrase": "message pranav saying I will be late",
-      "verdict": "FAIL",
-      "observed": "Chat / Opened Messages for Pranav / unverified",
-      "note": "expected entry never appeared",
+      "verdict": "PASS",
+      "observed": "Message / Confirm draft to Pranav / awaiting user",
+      "note": "",
       "focus": "",
       "volume": null
     },
@@ -555,9 +555,9 @@
       "id": "comms.messageHindi",
       "group": "comms",
       "phrase": "प्रणव को मैसेज भेजो कि मैं देर से आऊंगा",
-      "verdict": "FAIL",
-      "observed": "no new trace entries",
-      "note": "expected entry never appeared",
+      "verdict": "PASS",
+      "observed": "Message / Confirm draft to Pranav / awaiting user",
+      "note": "",
       "focus": "",
       "volume": null
     },
@@ -625,9 +625,9 @@
       "id": "routine.delete",
       "group": "routines",
       "phrase": "delete routine bench",
-      "verdict": "FAIL",
-      "observed": "no new trace entries",
-      "note": "expected entry never appeared",
+      "verdict": "PASS",
+      "observed": "Routine / Delete bench / awaiting user",
+      "note": "",
       "focus": "",
       "volume": null
     },
@@ -646,7 +646,7 @@
       "group": "routines",
       "phrase": "copy that",
       "verdict": "PASS",
-      "observed": "Clipboard / Copied the last text / copied | Read / Read 344 characters via accessibility / done",
+      "observed": "Clipboard / Copied the last text / copied",
       "note": "",
       "focus": "",
       "volume": null
@@ -655,10 +655,10 @@
       "id": "agent.chain",
       "group": "agent",
       "phrase": "open chrome and search for weather",
-      "verdict": "FAIL",
-      "observed": "Agent / open chrome and search for weather / requested",
-      "note": "expected entry never appeared",
-      "focus": "",
+      "verdict": "PASS",
+      "observed": "Agent / Completed: open chrome and search for weather / done | Agent / open chrome and search for weather / requested",
+      "note": "",
+      "focus": "com.android.chrome",
       "volume": null
     },
     {
@@ -666,7 +666,7 @@
       "group": "agent",
       "phrase": "open youtube and search for lofi",
       "verdict": "FAIL",
-      "observed": "Agent / Stopped: open youtube and search for lofi / failed | Agent / open youtube and search for lofi / requested | Agent / Completed: open chrome and search for weather / unverified",
+      "observed": "Agent / Stopped: open youtube and search for lofi / failed | Agent / open youtube and search for lofi / requested",
       "note": "expected entry never appeared",
       "focus": "",
       "volume": null

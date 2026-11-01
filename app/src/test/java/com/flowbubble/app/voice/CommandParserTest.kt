@@ -420,4 +420,15 @@ class CommandParserTest {
     fun `a name and a body after whatsapp is still a draft`() {
         assertEquals(Command.SendMessage("Arjun", "running late"), CommandParser.parse("whatsapp Arjun running late"))
     }
+
+    @Test
+    fun `a message verb naming no one never invents a recipient`() {
+        assertNull(CommandParser.parse("send this message: hello"))
+        assertNull(CommandParser.parse("send a message"))
+    }
+
+    @Test
+    fun `write a message keeps the words the user said`() {
+        assertEquals(Command.TypeText("a message saying hello"), CommandParser.parse("write a message saying hello"))
+    }
 }
