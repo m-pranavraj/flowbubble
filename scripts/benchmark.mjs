@@ -14,13 +14,25 @@
  *   node scripts/benchmark.mjs                # the whole frozen suite
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 
 const ADB = process.env.ADB || 'C:/Users/Pranav/AppData/Local/Android/Sdk/platform-tools/adb.exe';
-const DEVICE = process.env.DEVICE || 'emulator-5556';
+const DEVICE = process.env.DEVICE || 'emulator-5554';
 const PKG = 'com.flowbubble.app';
 const LABEL = 'FlowBubble voice access';
-const APK = process.env.APK || 'app/build/outputs/apk/debug/app-debug.apk';
+const DEBUG_OUT = 'app/build/outputs/apk/debug';
+
+/* The build names its artifact FlowBubble-<versionName>-debug.apk, so the harness follows the
+ * version instead of pinning a filename that goes stale on every release. */
+function defaultApk() {
+  if (process.env.APK) return process.env.APK;
+  const apks = existsSync(DEBUG_OUT) ? readdirSync(DEBUG_OUT).filter((f) => f.endsWith('.apk')) : [];
+  const versioned = apks.filter((f) => f.endsWith('-debug.apk')).sort();
+  const name = versioned.at(-1) || apks[0] || 'app-debug.apk';
+  return `${DEBUG_OUT}/${name}`;
+}
+
+const APK = defaultApk();
 const OUT = 'verify/benchmark';
 
 const args = process.argv.slice(2);
@@ -112,6 +124,100 @@ function mediaVolume() {
 function accessibilityBound() {
   const out = shell('dumpsys accessibility', { allowFail: true, timeout: 20000 });
   return out.includes(LABEL);
+}
+
+function overlayRunning() {
+  const out = shell(`dumpsys activity services ${PKG}`, { allowFail: true, timeout: 20000 });
+  return out.includes(`${PKG}/.service.OverlayService`);
+}
+
+function screenSize() {
+  const out = shell('wm size', { allowFail: true, timeout: 10000 });
+  const match = out.match(/(\d+)x(\d+)/);
+  return match ? { w: Number(match[1]), h: Number(match[2]) } : { w: 1080, h: 2400 };
+}
+
+function dumpUi() {
+  shell('uiautomator dump /sdcard/bench-ui.xml', { allowFail: true, timeout: 20000 });
+  return shell('cat /sdcard/bench-ui.xml', { allowFail: true, timeout: 20000 });
+}
+
+function nodeCentre(xml, label) {
+  for (const node of xml.split('<node')) {
+    if (!node.includes(`text="${label}"`)) continue;
+    const m = node.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+    if (m) return { x: Math.round((+m[1] + +m[3]) / 2), y: Math.round((+m[2] + +m[4]) / 2) };
+  }
+  return null;
+}
+
+/*
+ * The bubble is a runtime choice, not a stored setting, and OverlayService is not exported, so a
+ * test harness cannot start it with `am`. It has to be switched on the way a user does.
+ *
+ * The app lands on Home right after launch and only shows the toggle on Setup, and the toggle label
+ * itself reports whether Android has handed over accessibility yet: it reads "Finish the required
+ * steps" while the service is still binding. Scrolling deliberately stops above the toggle, because
+ * a swipe that begins on the button is delivered as a click and switches the bubble back off.
+ */
+function enableBubble() {
+  if (overlayRunning()) return true;
+  const { w, h } = screenSize();
+  const scrollFrom = Math.round(h * 0.55);
+  const scrollTo = Math.round(h * 0.32);
+  shell(`monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`, { allowFail: true });
+  sleep(2000);
+  const setup = nodeCentre(dumpUi(), 'Setup');
+  if (setup) {
+    shell(`input tap ${setup.x} ${setup.y}`, { allowFail: true });
+    sleep(1200);
+  }
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    let target = null;
+    for (let scan = 0; scan < 12 && !target; scan += 1) {
+      const xml = dumpUi();
+      target = nodeCentre(xml, 'Turn on bubble');
+      if (target) break;
+      if (nodeCentre(xml, 'Turn off bubble') || overlayRunning()) return true;
+      if (!nodeCentre(xml, 'Finish the required steps')) {
+        shell(`input swipe ${Math.round(w / 2)} ${scrollFrom} ${Math.round(w / 2)} ${scrollTo} 600`, { allowFail: true });
+      }
+      sleep(1500);
+    }
+    if (!target) continue;
+    shell(`input tap ${target.x} ${target.y}`, { allowFail: true });
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      if (overlayRunning()) return true;
+      sleep(700);
+    }
+  }
+  return overlayRunning();
+}
+
+/*
+ * Android only rebinds an accessibility service some seconds after the settings write, and a
+ * broadcast cannot start a microphone foreground service from the background on API 35. Both land
+ * in a window where every task fails for the same reason, so readiness is polled, never assumed.
+ */
+function waitFor(what, probe, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (probe()) return true;
+    sleep(500);
+  }
+  throw new Error(`device is not ready: ${what} did not come up within ${timeoutMs}ms`);
+}
+
+function grantPrerequisites() {
+  for (const permission of ['RECORD_AUDIO', 'POST_NOTIFICATIONS']) {
+    shell(`pm grant ${PKG} android.permission.${permission}`, { allowFail: true });
+  }
+  shell(`appops set ${PKG} SYSTEM_ALERT_WINDOW allow`, { allowFail: true });
+  // Writing the secure settings by hand leaves NotificationManagerService unaware of them; only
+  // these commands make the system bind the listener and hand over Do Not Disturb.
+  shell(`cmd notification allow_listener ${PKG}/${PKG}.notifications.FlowNotificationService`, { allowFail: true });
+  shell(`cmd notification allow_dnd ${PKG}`, { allowFail: true });
 }
 
 function applyPre(items = []) {
@@ -618,17 +724,22 @@ function installAndPrepare() {
     adb(['install', '-r', APK], { timeout: 180000 });
   }
   shell(`am force-stop ${PKG}`, { allowFail: true });
-  if (!accessibilityBound()) {
-    shell(`settings put secure enabled_accessibility_services ${PKG}/${PKG}.access.FlowAccessibilityService`, { allowFail: true });
-    shell('settings put secure accessibility_enabled 1', { allowFail: true });
-  }
+  grantPrerequisites();
   shell(`monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`, { allowFail: true });
-  sleep(2000);
-  shell(`am start-foreground-service ${PKG}/.service.OverlayService`, { allowFail: true });
-  sleep(1200);
+  sleep(1500);
+  // A force-stop prunes enabled_accessibility_services, so the service is only re-enabled once the
+  // process is back up; writing it before the launch races with that pruning and unbinds again.
+  shell(`settings put secure enabled_accessibility_services ${PKG}/${PKG}.access.FlowAccessibilityService`, { allowFail: true });
+  shell('settings put secure accessibility_enabled 1', { allowFail: true });
+  waitFor('accessibility service', accessibilityBound, 20000);
+  // The bubble is a user choice the app honours on launch, and OverlayService is not exported, so
+  // only the app itself may start it.
+  if (!enableBubble()) {
+    throw new Error('the bubble would not turn on; open Setup in FlowBubble and check the required permissions');
+  }
   shell('input keyevent KEYCODE_HOME', { allowFail: true });
   sleep(900);
-  return { accessibility: accessibilityBound(), focus: focus() };
+  return { accessibility: true, overlay: true, focus: focus() };
 }
 
 function main() {
@@ -641,7 +752,7 @@ function main() {
   const chosen = selectTasks();
   const readiness = installAndPrepare();
   mkdirSync(OUT, { recursive: true });
-  console.log(`device ${DEVICE}  accessibility=${readiness.accessibility}  tasks=${chosen.length}`);
+  console.log(`device ${DEVICE}  accessibility=${readiness.accessibility}  bubble=${readiness.overlay}  tasks=${chosen.length}`);
 
   const results = [];
   for (const task of chosen) {
