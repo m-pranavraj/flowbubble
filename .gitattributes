@@ -1,0 +1,6 @@
+# The wrapper script must keep LF endings and its exec bit or Linux CI cannot run it.
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.apk binary
