@@ -53,9 +53,11 @@ Create the key once, in the repository root:
 
 ```bash
 keytool -genkeypair -v -keystore keystore/flowbubble-release.jks \
-  -alias flowbubble -keyalg RSA -keysize 2048 -validity 10000 \
-  -storepass "$(read -rsp 'store password: ' p && echo $p)"
+  -alias flowbubble -keyalg RSA -keysize 2048 -validity 10000
 ```
+
+keytool prompts for the store and key passwords; use the same values in
+`keystore.properties` below.
 
 Back the keystore up offline. Losing it means users must uninstall and reinstall, because
 Android refuses an update signed by a different key.
