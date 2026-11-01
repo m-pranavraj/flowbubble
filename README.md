@@ -330,6 +330,14 @@ The runner installs the current debug APK, re-enables accessibility, starts the 
 
 Before scoring anything it proves the connection is live: it changes the foreground app, asks the running accessibility service what it now sees, and requires a real package back. Android keeps a service whose process died in "Crashed services", where it stays listed as bound but delivers nothing, so a stale binding aborts the run instead of quietly failing every task.
 
+### Checking a release build
+
+A release APK has no debug receiver, so the benchmark cannot drive it. `scripts/release-check.mjs` verifies the shipped channel the way a user's device would: the installed version, that the release manifest carries no debug receiver, that accessibility binds without crashing, that the bubble turns on from the app's own Setup screen, and that Android reports the overlay window drawn while another app holds focus.
+
+```bash
+node scripts/release-check.mjs
+```
+
 ### Injecting a transcript without a microphone
 
 Debug builds include a receiver that feeds text through the same route as a finished speech result. It lives only in `src/debug` and is not part of a release build.
