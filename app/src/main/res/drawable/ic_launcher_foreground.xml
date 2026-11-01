@@ -4,10 +4,41 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Floating bubble with a tail, drawn inside the 66dp adaptive safe zone. -->
     <path
-        android:fillColor="#005EEAD4"
-        android:pathData="M54,54m-30,0a30,30 0,1 1,60 0a30,30 0,1 1,-60 0" />
+        android:fillColor="#5EEAD4"
+        android:pathData="M44,34 H64 A14,14 0 0 1 78,48 V56 A14,14 0 0 1 64,70 H44 A14,14 0 0 1 30,56 V48 A14,14 0 0 1 44,34 Z M44,70 L44,81 L55,70 Z" />
+
+    <!-- Flow lines: speech arriving at the bubble. -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M54,60c2.76,0 5,-2.24 5,-5V41c0,-2.76 -2.24,-5 -5,-5s-5,2.24 -5,5v14c0,2.76 2.24,5 5,5zM62.83,55c0,5 -4.23,8.5 -8.83,8.5S45.17,60 45.17,55H41.5c0,5.68 4.53,10.38 10,10.99V74h5v-8.01c5.47,-0.61 10,-5.31 10,-10.99h-3.67z" />
+        android:strokeColor="#0B0F14"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M36,45 H44" />
+    <path
+        android:strokeColor="#0B0F14"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M36,53 H41" />
+
+    <!-- Microphone. -->
+    <path
+        android:fillColor="#0B0F14"
+        android:pathData="M57,40 A4.5,4.5 0 0 1 61.5,44.5 V50 A4.5,4.5 0 0 1 52.5,50 V44.5 A4.5,4.5 0 0 1 57,40 Z" />
+    <path
+        android:strokeColor="#0B0F14"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M51,48 Q51,56.5 57,56.5 Q63,56.5 63,48" />
+    <path
+        android:strokeColor="#0B0F14"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M57,56.5 V61" />
+    <path
+        android:strokeColor="#0B0F14"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M52.5,61 H61.5" />
 </vector>

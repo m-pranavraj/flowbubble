@@ -10,3 +10,10 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Release signing material stays local; never commit it.
+keystore/
+keystore.properties
+
+# Chat-session scratch images, not project assets.
+vibe_images/

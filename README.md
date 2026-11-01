@@ -1,5 +1,7 @@
 # FlowBubble
 
+<img src="docs/assets/flowbubble-icon.png" alt="FlowBubble icon" width="112" />
+
 A permission-gated voice and vision layer for Android. A floating bubble holds the microphone; speak naturally and FlowBubble dictates clean text into the focused field, edits selected text, reads or acts on the screen, or runs short multi-step tasks in any app.
 
 This repository is a working Android app (Kotlin, Jetpack Compose, custom overlay windows), not a mockup. It uses documented Android capabilities only: overlay windows, an accessibility service, MediaProjection screen capture with on-device OCR, a notification listener, a microphone foreground service, runtime permissions, intents, and a Quick Settings tile. There is no root, no hidden privilege escalation, and no attempt to bypass lock screens, authentication, or passwords.
@@ -35,7 +37,7 @@ This repository is a working Android app (Kotlin, Jetpack Compose, custom overla
 - Android 8.0 (API 26) or newer, with Google speech recognition available. API 30+ is recommended: the accessibility screenshot action and media key control require it, and current Android versions show the system screen-capture consent flow. The bundled ML Kit text-recognition model works offline.
 - `adb` for sideloading.
 
-The checked-in `local.properties` points at a Windows SDK path. Change it for your machine, or remove it and let Android Studio regenerate it.
+Android Studio writes `local.properties` with your SDK path the first time you open the project. It is gitignored and never committed.
 
 ## Build
 
@@ -44,7 +46,7 @@ export JAVA_HOME="/path/to/jdk-21"
 ./gradlew :app:assembleDebug
 ```
 
-The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The APK is written to `app/build/outputs/apk/debug/FlowBubble-<version>-debug.apk`.
 
 Run the unit tests:
 
@@ -55,8 +57,14 @@ Run the unit tests:
 Install on a connected device or emulator:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/FlowBubble-1.0.0-debug.apk
 ```
+
+## Release and CI
+
+Pull requests and `main` run `.github/workflows/ci.yml`: JDK 21, Android 35 SDK, debug build, unit tests, and uploaded artifacts. Pushing a `v*` tag runs `.github/workflows/release.yml`, which refuses a tag that does not match `versionName`, builds the release APK, verifies it with `apksigner`, and only then publishes the GitHub Release with `FlowBubble-<version>-release.apk` attached.
+
+Release signing stays out of git: `keystore/` and `keystore.properties` are gitignored. Without them the release build still compiles and the artifact is named `…-release-unsigned.apk` so it can never be mistaken for a deliverable. [docs/RELEASE.md](docs/RELEASE.md) covers the branch flow, keystore setup, CI secrets, and how to switch a device between debug and release channels.
 
 ## First-run setup
 
@@ -204,6 +212,7 @@ The key is stored in the app's private SharedPreferences on the device. Use a re
 - On Android 14+, the system consent dialog may default to sharing a single app. Cross-app vision needs "Entire screen"; FlowBubble cannot change that choice for you.
 - OCR accuracy depends on text size, contrast, and language. It is fused with accessibility text, not a replacement for it. Games and fully custom-rendered surfaces may still expose nothing.
 - Accessibility coverage varies by app. WebViews, Flutter, games, and custom-rendered surfaces may expose little or nothing. FlowBubble reports the failure instead of guessing with coordinate taps.
+- On the API 35 emulator image, Android force-hides third-party overlay windows while the Settings app is in the foreground (`mPolicyVisibility=false`, `mForceHideNonSystemOverlayWindow=true` in `dumpsys window`). The bubble and its result card then stay invisible inside Settings even though the service is running and the command still executes. Debug and release builds behave identically, so this is a platform policy the app cannot override, not a build defect. The bubble draws normally over Chrome, Clock, the launcher, and the rest of the tested apps.
 - Tap-by-label uses visible text or content descriptions and clicks the nearest clickable ancestor. Ambiguous screens may need a more specific label or an ordinal ("the second result").
 - Long-press, swipe, and unlabelled-icon taps are dispatched gestures: Android accepts the gesture before the app reacts, so FlowBubble only claims it worked when the screen actually changed. Custom-rendered games and canvas UIs may accept the gesture and show nothing.
 - Copy, select-all, and set-selection need Android 9 or newer and depend on the app exposing its text range; a field that reports no selection gets "asked the app to copy" rather than a success claim, and FlowBubble can never show clipboard contents.
@@ -243,6 +252,8 @@ app/src/main/java/com/flowbubble/app/
                                undo, taps, long-press, side swipe, overflow
                                menu, clipboard actions, scrolling, screen
                                text, screenshot
+  access/SpokenText.kt         folds labels and spoken targets so & / - /
+                               punctuation / Devanagari marks still match
   capture/                     MediaProjection foreground service, in-memory
                                frames, consent activity, capture state
   vision/                      ML Kit OCR, accessibility+OCR fusion, text
@@ -271,8 +282,14 @@ app/src/main/java/com/flowbubble/app/
   service/OverlayService.kt    foreground service, windows, session state
   service/FlowTileService.kt   Quick Settings tile
   ui/                          Compose screens and theme
+app/src/main/res/drawable/ic_launcher_*.xml
+                               adaptive icon: background, foreground, monochrome
 app/src/test/java/...          parser, router, planner, vision, outcome, and
                                safety unit tests (no Android runtime needed)
+.github/workflows/ci.yml       PR and main: debug build, unit tests, artifacts
+.github/workflows/release.yml  v* tag: signed release APK, then the release
+docs/RELEASE.md                branch flow, signing, CI secrets, channels
+docs/assets/flowbubble-icon.png  brand icon for the README and releases
 ```
 
 ## Developer verification notes

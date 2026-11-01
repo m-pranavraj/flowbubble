@@ -1,7 +1,16 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// Release signing is local or CI-only. keystore.properties is gitignored; without it the
+// release build still compiles and simply stays unsigned.
+val keystoreProps = rootProject.file("keystore.properties").takeIf { it.exists() }?.let { file ->
+    Properties().apply { FileInputStream(file).use { load(it) } }
 }
 
 android {
@@ -13,7 +22,18 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
+    }
+
+    signingConfigs {
+        keystoreProps?.let { props ->
+            create("release") {
+                storeFile = file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -23,6 +43,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
@@ -38,6 +59,19 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+
+    // Deliverables carry the product name and version instead of "app-release.apk", and an
+    // unsigned release says so in its name so it can never be mistaken for a deliverable.
+    val hasReleaseKey = signingConfigs.findByName("release") != null
+    applicationVariants.all {
+        val unsignedRelease = buildType.name == "release" && !hasReleaseKey
+        outputs.forEach { output ->
+            if (output is com.android.build.gradle.internal.api.BaseVariantOutputImpl) {
+                val type = if (unsignedRelease) "release-unsigned" else buildType.name
+                output.outputFileName = "FlowBubble-${versionName}-${type}.apk"
+            }
+        }
     }
 }
 
