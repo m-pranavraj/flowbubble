@@ -1,6 +1,5 @@
 package com.flowbubble.app.ui
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,7 +16,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,9 +31,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.flowbubble.app.BuildConfig
 import com.flowbubble.app.core.HistoryEntry
 import com.flowbubble.app.core.Prefs
 import com.flowbubble.app.core.RoutineStore
@@ -51,11 +49,6 @@ import java.util.Locale
 @Composable
 internal fun SettingsScreen(onClearHistory: () -> Unit) {
     val context = LocalContext.current
-    var baseUrl by remember { mutableStateOf(Prefs.aiBaseUrl(context)) }
-    var apiKey by remember { mutableStateOf(Prefs.aiApiKey(context)) }
-    var model by remember { mutableStateOf(Prefs.aiModel(context)) }
-    var cleanup by remember { mutableStateOf(Prefs.aiCleanupEnabled(context)) }
-    var agentPlanning by remember { mutableStateOf(Prefs.agentLlmEnabled(context)) }
     var handsFree by remember { mutableStateOf(Prefs.handsFreeEnabled(context)) }
     var language by remember { mutableStateOf(Prefs.language(context)) }
     var confirmClear by remember { mutableStateOf(false) }
@@ -78,104 +71,7 @@ internal fun SettingsScreen(onClearHistory: () -> Unit) {
         )
         BodyText("Everything on this screen is optional. Without an AI model, FlowBubble still cleans dictation and edits with on-device rules.")
 
-        FlowCard {
-            SectionLabel("AI model")
-            Spacer(Modifier.height(6.dp))
-            BodyText("An OpenAI-compatible chat-completions endpoint. Dictation cleanup and free-form editing use it only when you configure a key.")
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = { baseUrl = it },
-                label = { Text("Base URL") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("API key") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                value = model,
-                onValueChange = { model = it },
-                label = { Text("Model") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "AI cleanup for dictation",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Sends the transcribed text to your endpoint before inserting it.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 17.sp
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Switch(
-                    checked = cleanup,
-                    onCheckedChange = {
-                        cleanup = it
-                        Prefs.setAiCleanupEnabled(context, it)
-                    }
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "AI planning for free-form tasks",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Lets the agent ask your model to plan unfamiliar multi-step tasks. Every AI plan asks before sending visible screen text.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 17.sp
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Switch(
-                    checked = agentPlanning,
-                    onCheckedChange = {
-                        agentPlanning = it
-                        Prefs.setAgentLlmEnabled(context, it)
-                    }
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            FlowPrimaryButton(
-                text = "Save AI settings",
-                onClick = {
-                    val url = baseUrl.trim()
-                    if (url.isNotEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
-                        Toast.makeText(context, "Base URL must start with http:// or https://", Toast.LENGTH_LONG).show()
-                    } else {
-                        Prefs.setAiConfig(
-                            context,
-                            url.ifBlank { "https://api.openai.com/v1" },
-                            apiKey,
-                            model.ifBlank { "gpt-4o-mini" }
-                        )
-                        Toast.makeText(context, "AI settings saved", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            )
-            Spacer(Modifier.height(8.dp))
-            BodyText("The key is stored in this app's private preferences on this device. Use a restricted key and a local endpoint if your dictation is sensitive.")
-        }
+        AiModelsCard()
 
         FlowCard {
             SectionLabel("Voice language")
@@ -323,7 +219,7 @@ internal fun SettingsScreen(onClearHistory: () -> Unit) {
         }
 
         Text(
-            text = "FlowBubble 0.1 \u00B7 No analytics, no background uploads",
+            text = "FlowBubble ${BuildConfig.VERSION_NAME} \u00B7 No analytics, no background uploads",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp)

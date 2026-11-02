@@ -176,16 +176,20 @@ Two things the bundled recognizer does not give back is handled after transcript
 
 Hindi arrives as Devanagari when the recognizer language is set to हिन्दी. `voice/Devanagari.kt` transliterates names for contact matching, and `voice/HindiCommands.kt` rewrites the core verb forms into the English grammar before parsing. The rewrite is a fixed pattern table, not a translation engine: app names come back through a small borrowed-word table (यूट्यूब → youtube), a search query or message body keeps the script you spoke, and a phrase that matches no command stays dictation. The command set covered today is listed under example commands; everything else is intentionally not guessed.
 
-## Optional AI model
+## Optional AI models
 
-Settings accepts any OpenAI-compatible `chat/completions` endpoint, an API key, and a model name. It powers:
+Settings → **AI models** talks to any OpenAI-compatible `chat/completions` endpoint. Pick a provider — Groq, OpenRouter, Gemini, Mistral, DeepSeek, Together, xAI, Cerebras, OpenAI, or a model on your own machine through Ollama or LM Studio — or paste any base URL and FlowBubble fills in the scheme and the `/chat/completions` path itself. Add as many models as you like and assign each job its own: dictation cleanup, inline edits, summarising, answering about the screen, translating, and free-form planning. A model that needs no key is allowed only for an address on your own machine or network; a hosted endpoint still has to have one, and plain `http://` to a hosted provider is refused before anything leaves the app.
+
+Each model row has a **Test** button that makes one tiny round trip ("reply with exactly OK") and reports the latency, or the provider's own error with the status code and your key masked out. A job assigned to a model that has stopped working turns that job off rather than quietly sending your text to a different company.
+
+It powers:
 
 - cleanup of dictated text when the on-device rules are not enough,
 - free-form editing such as translation or tone changes,
 - answering a question about the screen or translating it, after you explicitly confirm sending the visible text,
 - "AI planning for free-form tasks": when the local planner cannot map a multi-step request, the model proposes a short JSON action plan (open, tap, type, scroll, back, wait, ask) that FlowBubble validates and executes with the same safety gates.
 
-The key is stored in the app's private SharedPreferences on the device. Use a restricted key and a local endpoint if the content is sensitive. No audio is sent to the AI endpoint, and no screenshot image is sent: screen features send only the visible text you approved, and the panel shows the endpoint and character count first.
+The key is stored in an encrypted preference file backed by the Android Keystore, is never printed in full (the screen shows the last four characters), and never reaches a log or the history. If a device cannot open its keystore the settings screen says so instead of failing quietly, and the keys fall back to ordinary app storage. No audio is sent to any endpoint, and no screenshot image is sent: screen features send only the visible text you approved, and the panel names the host and the character count first.
 
 ## Safety behavior
 

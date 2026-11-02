@@ -44,6 +44,7 @@ import com.flowbubble.app.vision.ScreenFusion
 import com.flowbubble.app.vision.ScreenModel
 import com.flowbubble.app.vision.ScreenModelFactory
 import com.flowbubble.app.vision.SmartActions
+import com.flowbubble.app.voice.AiRole
 import com.flowbubble.app.voice.Command
 import com.flowbubble.app.voice.CommandParser
 import com.flowbubble.app.voice.FollowUpKind
@@ -1032,12 +1033,12 @@ class CommandExecutor(
         val partial = model?.captureError?.let { "\n\n$it" }.orEmpty()
         LastActionMemory.rememberOutput(text)
         record("Read", "Read ${text.length} characters via $source", "done")
-        if (LlmClient.isConfigured(context)) {
+        if (LlmClient.isConfigured(context, AiRole.Summarize)) {
             ui.showPanel(
                 PanelContent(
                     title = "Read this screen",
                     body = "I found ${text.length} characters using $source.$partial\n\n" +
-                        "Summarize with your configured AI model? Screen text goes to ${Prefs.aiBaseUrl(context)}.",
+                        "Summarize with your configured AI model? Screen text goes to ${LlmClient.endpointLabel(context, AiRole.Summarize)}.",
                     actions = listOf(
                         PanelAction("Summarize with AI", primary = true) { summarize(text) },
                         PanelAction("Show text") { showScreenText(text) },
@@ -1430,29 +1431,32 @@ class CommandExecutor(
 
     private suspend fun askScreen(question: String) {
         screenAi(
+            role = AiRole.ScreenAnswer,
             actionLabel = "Ask AI about the screen",
             requestDescription = "answer \u201C${question.take(80)}\u201D",
             resultTitle = "Answer",
-            request = { text -> LlmClient.askAboutScreen(question, text, LlmClient.config(context)) }
+            request = { text -> LlmClient.askAboutScreen(question, text, LlmClient.config(context, AiRole.ScreenAnswer)) }
         )
     }
 
     private suspend fun translateScreen(language: String) {
         screenAi(
+            role = AiRole.Translate,
             actionLabel = "Translate the screen",
             requestDescription = "translate it to $language",
             resultTitle = "Translation",
-            request = { text -> LlmClient.translateScreen(language, text, LlmClient.config(context)) }
+            request = { text -> LlmClient.translateScreen(language, text, LlmClient.config(context, AiRole.Translate)) }
         )
     }
 
     private suspend fun screenAi(
+        role: AiRole,
         actionLabel: String,
         requestDescription: String,
         resultTitle: String,
         request: suspend (String) -> Result<String>
     ) {
-        if (!LlmClient.isConfigured(context)) {
+        if (!LlmClient.isConfigured(context, role)) {
             record("AI", actionLabel, "setup needed")
             ui.showPanel(
                 PanelContent(
@@ -1489,7 +1493,7 @@ class CommandExecutor(
             )
             return
         }
-        val endpoint = Prefs.aiBaseUrl(context)
+        val endpoint = LlmClient.endpointLabel(context, role)
         val approved = confirm(
             title = "Send screen text to AI?",
             body = "To $requestDescription, I'll send ${text.length} characters of visible text to $endpoint. " +
@@ -1672,7 +1676,7 @@ class CommandExecutor(
         }
         val (source, fromField) = latest
         val local = localRewrite(kind, source)
-        if (local == null && !LlmClient.isConfigured(context)) {
+        if (local == null && !LlmClient.isConfigured(context, AiRole.Edit)) {
             record("Rewrite", rewriteLabel(kind), "setup needed")
             ui.showPanel(
                 PanelContent(
@@ -1698,7 +1702,7 @@ class CommandExecutor(
             )
         )
         val rewritten = local ?: run {
-            val result = LlmClient.edit(source, aiInstruction(kind, language), LlmClient.config(context))
+            val result = LlmClient.edit(source, aiInstruction(kind, language), LlmClient.config(context, AiRole.Edit))
             result.getOrElse { error ->
                 record("Rewrite", rewriteLabel(kind), "failed")
                 ui.showPanel(
@@ -2531,7 +2535,7 @@ class CommandExecutor(
             )
         )
         job = scope.launch {
-            val result = LlmClient.summarize(text, LlmClient.config(context))
+            val result = LlmClient.summarize(text, LlmClient.config(context, AiRole.Summarize))
             result.onSuccess { summary ->
                 LastActionMemory.rememberOutput(summary)
                 record("Read", "AI summary of screen", "done")

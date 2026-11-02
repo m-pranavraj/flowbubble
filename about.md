@@ -1,21 +1,21 @@
 # FlowBubble — the whole project, end to end
 
 What exists today, what does not, what is worth improving in what exists, and what could be built
-next. Everything here is stated against the code at `v1.0.1` (commit `6a63c0c`), not against a plan.
+next. Everything here is stated against the code at `v1.0.2` (commit `75feebd`), not against a plan.
 
 ## 1. The build as it ships
 
 | | |
 | --- | --- |
-| Version | 1.0.1 (`versionCode` 2), `app/build.gradle.kts:24` |
+| Version | 1.0.2 (`versionCode` 3), `app/build.gradle.kts:24` |
 | Languages / UI | Kotlin, Jetpack Compose for the app screens, hand-built `WindowManager` overlay views for the bubble and panels |
 | SDK floor | `minSdk` 26, `compileSdk`/`targetSdk` 35 |
-| Source | 62 Kotlin files, 14,439 lines in `app/src/main`, 2,469 lines in 22 files in `app/src/test` |
+| Source | 65 Kotlin files, 15,321 lines in `app/src/main`, 2,744 lines in 23 files in `app/src/test` |
 | Command surface | 37 `Command` variants in `voice/CommandParser.kt:21` |
 | Manifest permissions | 12 declared: `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `POST_NOTIFICATIONS`, `READ_CONTACTS`, `MODIFY_AUDIO_SETTINGS`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`, `VIBRATE`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. No camera, no storage, no location, no telephony, no SMS |
 | Service-level permissions | 3, all Android-enforced and user-granted outside the manifest: `BIND_ACCESSIBILITY_SERVICE`, `BIND_NOTIFICATION_LISTENER_SERVICE`, `BIND_QUICK_SETTINGS_TILE` |
-| Third-party libraries | 10 plus the Compose BOM — Compose UI/foundation/material3, activity, core-ktx, lifecycle, coroutines, ML Kit text-recognition and ML Kit GenAI speech-recognition. JUnit is the only test dependency; no DI, no database, no networking or image library |
-| Release artifact | `FlowBubble-1.0.1-release.apk`, 52,233,764 bytes, V2-signed with the FlowBubble key |
+| Third-party libraries | 11 plus the Compose BOM — Compose UI/foundation/material3, activity, core-ktx, lifecycle, coroutines, `androidx.security:security-crypto` for the key store, ML Kit text-recognition and ML Kit GenAI speech-recognition. JUnit is the only test dependency; no DI, no database, no networking or image library |
+| Release artifact | `FlowBubble-1.0.2-release.apk`, 53,004,004 bytes, V2-signed with the FlowBubble key; a 28,226,954-byte release AAB for Play |
 | Distribution | GitHub Releases only. Not a Play listing — Play restricts general-purpose automation through the Accessibility API |
 
 ## 2. What is actually there
@@ -101,13 +101,39 @@ text in that field", "did the screen change".
 - `core/RoutineStore.kt` — up to 20 spoken routines, stored on-device, replayed through the same
   confirmation gates.
 
-### 2.7 Verification tooling (not shipped in the APK)
+### 2.7 Models and providers
+
+- `voice/AiProviders.kt` — 247 lines of pure logic: the provider registry (Groq, OpenRouter, Gemini,
+  Mistral, DeepSeek, Together, xAI, Cerebras, OpenAI, plus Ollama and LM Studio for a model on your
+  own machine), base-URL normalisation (scheme inferred, `/chat/completions` appended once, never
+  twice) and the rules that make a profile valid. A hosted endpoint needs a key and plain `http://`
+  to it is refused; an address on your own machine or LAN needs no key at all.
+  `resolve(settings, role)` is the single answer to "which model handles this job", and it never
+  substitutes a different provider for a role whose assigned model has stopped working — a broken
+  assignment turns that job off instead of sending your text to another company.
+- `core/AiStore.kt` — profiles in ordinary preferences, keys in an `EncryptedSharedPreferences` file
+  sealed by the Android Keystore, and a visible warning instead of a silent downgrade when a device
+  cannot open its keystore. A 1.0.1-era single endpoint+key configuration migrates into one default
+  profile exactly once, and the legacy keys are then removed.
+- `ui/AiModelsCard.kt` — the whole AI surface in one card: add, edit, delete and rank profiles, a
+  **Test** round trip per profile that reports the latency or the provider's own error with the key
+  masked out, a model picker for each job, and the two AI switches.
+- Six jobs are assignable: dictation cleanup, inline edit, summarise, answer-about-screen, translate
+  and free-form plan. `voice/LlmClient.kt` takes the role at every call site, so the model that
+  answers is decided in one place and named in every consent panel.
+
+### 2.8 Verification tooling (not shipped in the APK)
 
 - `scripts/benchmark.mjs` — 67 frozen spoken tasks against a real device, judged by the product's own
   history entries and foreground state. It refuses to score anything until it has proved the
   accessibility connection is live.
 - `scripts/release-check.mjs` — 6 checks that a release build works, because a release build has no
   debug receiver and the benchmark cannot drive it.
+- `scripts/provider-check.mjs` — stands up a mock OpenAI-compatible server on the workstation, drives
+  the Settings screen through the real UI, and reads back what the server actually received: the path,
+  the absence of an Authorization header for a local model, the presence of a bearer token for one
+  that has a key, the user agent, the model per job, and the masked 401. It also greps the app's own
+  storage for the key to prove it is not sitting in plain text.
 - `.github/workflows/ci.yml` and `.github/workflows/release.yml` — CI on PR and `main`; a `v*` tag
   builds and refuses to publish unless `apksigner` verifies what it built and the tag matches
   `versionName`.
@@ -148,7 +174,7 @@ text in that field", "did the screen change".
    differently), no tablet or fold.
 3. **4 of 67 tasks are permanently blocked on that image** (its YouTube opens on an "Update your app"
    dialog with no search field) and 2 are skipped (no flash unit). So the real denominator is 61 of 65.
-4. **No instrumentation tests.** `app/src/androidTest` does not exist. All 240 tests are JVM tests on
+4. **No instrumentation tests.** `app/src/androidTest` does not exist. All 262 tests are JVM tests on
    pure logic; every line that touches `AccessibilityNodeInfo`, a window or a system service is proven
    only end-to-end by the benchmark.
 5. **The release channel was checked, not driven.** 6/6 checks pass (installed version, no debug
@@ -159,16 +185,19 @@ text in that field", "did the screen change".
 
 1. **R8 is off** — `isMinifyEnabled = false` at `app/build.gradle.kts:41`. That, plus a bundled OCR
    model, is why the APK is 52 MB for a 14k-line app.
-2. **The AI key is in plaintext SharedPreferences** — `core/Prefs.kt:47`, `setAiConfig`. On a rooted or
-   backed-up device that key is readable. `MODE_PRIVATE` is not encryption.
+2. **Key storage has an unencrypted fallback** — `core/AiStore.kt:20`. Keys normally live in an
+   `EncryptedSharedPreferences` file sealed by the Android Keystore, but if a device cannot open its
+   keystore the app writes them to ordinary preferences and only *says so* on the Settings screen.
+   The warning is honest; the fallback is still plaintext.
 3. **Two god-objects.** `CommandExecutor.kt` (2,712 lines) and `OverlayService.kt` (1,389) hold command
    dispatch, verification, UI state and service lifecycle at once. Neither is unit-testable as it is.
 4. **The parser's word lists are hand-tuned.** `bodyOpeners` and `vagueRecipients` are enumerated
    English sets. They will mis-route the next phrasing that is not in them, and there is no metric
    telling us so.
-5. **A stale version string** — `ui/SettingsHistoryScreens.kt:326` still shows "FlowBubble 0.1 · No
-   analytics, no background uploads" while the build is 1.0.1. The claim is true; the number is wrong,
-   and it is wrong because it is hardcoded instead of `BuildConfig.VERSION_NAME`.
+5. **The provider registry is a table, not a probe.** `voice/AiProviders.kt` suggests one model id per
+   provider. When a provider renames a model the app still offers the old id and only the **Test**
+   button tells you; nothing asks the endpoint for its real `/models` list the way every other client
+   does.
 6. **The benchmark report does not identify the build under test.** `latest.md` records device, time and
    score, not the APK name, version or commit — so a report cannot be tied to the artifact it scored.
 7. **No failure taxonomy.** A device-blocked task and a product regression print the same `FAIL`, which
@@ -182,10 +211,13 @@ text in that field", "did the screen change".
 
 Ordered by value per hour. Sizes: S ≈ under a day, M ≈ a few days, L ≈ a week or more.
 
-1. **Fix the version string** (S) — `ui/SettingsHistoryScreens.kt:326` → `BuildConfig.VERSION_NAME`,
-   and add a unit test that the UI never hardcodes a version.
-2. **Encrypt the AI key** (S) — `EncryptedSharedPreferences` backed by the Android Keystore for
-   `ai_api_key`, never echoed to the screen or a log, and a "clear key" action.
+1. **Offer the endpoint's real model list** (M) — when a profile is edited, `GET /models` on the same
+   base URL and populate the model picker from it, keeping the typed value as the answer for servers
+   that do not implement the endpoint. This removes the only place where a provider rename breaks the
+   app.
+2. **Refuse instead of downgrading key storage** (S) — if the keystore cannot be opened, stop storing
+   keys and tell the user to use a local model or fix the device, rather than writing plaintext to
+   ordinary preferences behind a warning line.
 3. **Turn on R8 and resource shrinking** (M) — measure the APK before and after, keep ML Kit's rules,
    and re-run the full benchmark after, because minification can break reflection-driven code.
 4. **Add an `ask` outcome to the parser** (M) — a `Command.Clarify(question, candidates)` variant, a

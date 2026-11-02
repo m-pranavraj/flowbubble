@@ -34,6 +34,16 @@ object Prefs {
     fun aiModel(context: Context): String =
         sp(context).getString("ai_model", "gpt-4o-mini") ?: "gpt-4o-mini"
 
+    /**
+     * Only the migration in [AiStore] reads the three legacy fields, and it is finished with them
+     * once, so the plaintext copy of the key is deleted right after it is moved.
+     */
+    fun clearLegacyAiConfig(context: Context) = sp(context).edit(commit = true) {
+        remove("ai_base_url")
+        remove("ai_api_key")
+        remove("ai_model")
+    }
+
     fun agentLlmEnabled(context: Context): Boolean = sp(context).getBoolean("agent_llm", false)
 
     fun setAgentLlmEnabled(context: Context, value: Boolean) =
@@ -43,13 +53,6 @@ object Prefs {
 
     fun setHandsFreeEnabled(context: Context, value: Boolean) =
         sp(context).edit { putBoolean("hands_free", value) }
-
-    fun setAiConfig(context: Context, baseUrl: String, apiKey: String, model: String) =
-        sp(context).edit {
-            putString("ai_base_url", baseUrl.trim())
-            putString("ai_api_key", apiKey.trim())
-            putString("ai_model", model.trim())
-        }
 
     fun bubbleX(context: Context): Int = sp(context).getInt("bubble_x", -1)
 

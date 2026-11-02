@@ -50,6 +50,7 @@ import com.flowbubble.app.overlay.OverlayPanel
 import com.flowbubble.app.overlay.OverlayUi
 import com.flowbubble.app.overlay.PanelAction
 import com.flowbubble.app.overlay.PanelContent
+import com.flowbubble.app.voice.AiRole
 import com.flowbubble.app.voice.Command
 import com.flowbubble.app.voice.CommandParser
 import com.flowbubble.app.voice.EngineKind
@@ -916,8 +917,9 @@ class OverlayService : Service(), OverlayUi {
             }
 
             var result = cleaned
-            if (Prefs.aiCleanupEnabled(this@OverlayService) && LlmClient.isConfigured(this@OverlayService)) {
-                LlmClient.cleanup(cleaned, LlmClient.config(this@OverlayService))
+            if (Prefs.aiCleanupEnabled(this@OverlayService) &&
+                LlmClient.isConfigured(this@OverlayService, AiRole.Dictation)) {
+                LlmClient.cleanup(cleaned, LlmClient.config(this@OverlayService, AiRole.Dictation))
                     .onSuccess { improved ->
                         if (improved.isNotBlank()) result = improved.trim()
                     }
@@ -1050,7 +1052,7 @@ class OverlayService : Service(), OverlayUi {
             return
         }
 
-        if (!LlmClient.isConfigured(this)) {
+        if (!LlmClient.isConfigured(this, AiRole.Edit)) {
             hidePill()
             resetBubble()
             showPanel(
@@ -1070,7 +1072,7 @@ class OverlayService : Service(), OverlayUi {
         }
 
         scope.launch {
-            val result = LlmClient.edit(selected, instruction, LlmClient.config(this@OverlayService))
+            val result = LlmClient.edit(selected, instruction, LlmClient.config(this@OverlayService, AiRole.Edit))
             result.onSuccess { edited ->
                 if (edited.isBlank()) {
                     hidePill()

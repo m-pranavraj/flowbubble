@@ -21,6 +21,7 @@ import com.flowbubble.app.vision.ScreenModel
 import com.flowbubble.app.vision.ScreenModelFactory
 import com.flowbubble.app.vision.ScreenTarget
 import com.flowbubble.app.vision.TargetSource
+import com.flowbubble.app.voice.AiRole
 import com.flowbubble.app.voice.LlmClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -129,7 +130,7 @@ class AgentRunner(
 
         var plan = LocalPlanner.plan(goal)
         if (plan == null) {
-            if (!Prefs.agentLlmEnabled(context) || !LlmClient.isConfigured(context)) {
+            if (!Prefs.agentLlmEnabled(context) || !LlmClient.isConfigured(context, AiRole.Plan)) {
                 return AgentOutcome.Failed(
                     "I can run multi-step search, open, type, tap, and scroll requests on my own. " +
                         "For free-form screen tasks, turn on AI planning in FlowBubble settings and configure a model."
@@ -140,7 +141,7 @@ class AgentRunner(
                     "Accessibility is off, so I can't see or act on the screen. " +
                         "Enable FlowBubble voice access in Android settings."
                 )
-            val endpoint = Prefs.aiBaseUrl(context)
+            val endpoint = LlmClient.endpointLabel(context, AiRole.Plan)
             val approved = confirm(
                 title = "Plan this with AI?",
                 body = "This sends the visible screen text to your AI model at $endpoint to choose the steps. " +
@@ -161,7 +162,7 @@ class AgentRunner(
                         }
                 )
             }
-            plan = LlmPlanner.plan(goal, screenText, LlmClient.config(context))
+            plan = LlmPlanner.plan(goal, screenText, LlmClient.config(context, AiRole.Plan))
                 .getOrElse { error ->
                     return AgentOutcome.Failed("AI planning failed: ${error.message ?: "unknown error"}. Nothing was changed.")
                 }
@@ -846,14 +847,14 @@ class AgentRunner(
 
     private suspend fun askAi(action: AgentAction.AskAi): StepOutcome {
         val service = FlowAccessibilityService.instance ?: return accessibilityMissing()
-        if (!LlmClient.isConfigured(context)) {
+        if (!LlmClient.isConfigured(context, AiRole.ScreenAnswer)) {
             return StepOutcome(false, note = "No AI model is configured. Add one in FlowBubble settings.")
         }
         val model = readModel(service, includePixels = true)
         val text = model?.readableText(5000).orEmpty()
         if (text.isBlank()) return StepOutcome(false, note = "There's no readable text on this screen.")
 
-        val endpoint = Prefs.aiBaseUrl(context)
+        val endpoint = LlmClient.endpointLabel(context, AiRole.ScreenAnswer)
         val approved = confirm(
             title = "Send screen text to AI?",
             body = "This sends ${text.length} characters of visible text to $endpoint. " +
@@ -862,7 +863,7 @@ class AgentRunner(
         if (!approved) return StepOutcome(cancelled = true)
 
         ui.showPanel(progress("Asking AI", "The answer will appear here."))
-        val answer = LlmClient.askAboutScreen(action.instruction, text, LlmClient.config(context))
+        val answer = LlmClient.askAboutScreen(action.instruction, text, LlmClient.config(context, AiRole.ScreenAnswer))
             .getOrElse { error ->
                 return StepOutcome(false, note = "The AI request failed: ${error.message ?: "unknown error"}")
             }
