@@ -141,7 +141,7 @@ class FlowAccessibilityService : AccessibilityService() {
      */
     fun setFocusedFieldText(text: String): TextInsertResult {
         if (isPasswordFocused()) {
-            return TextInsertResult.Failed("This looks like a password field. FlowBubble won't type here.")
+            return TextInsertResult.Failed("This looks like a password field. Your Bubble won't type here.")
         }
         val node = focusedEditable()
             ?: return TextInsertResult.Failed("No text field is focused.")
@@ -154,7 +154,7 @@ class FlowAccessibilityService : AccessibilityService() {
      */
     fun insertText(text: String): TextInsertResult {
         if (isPasswordFocused()) {
-            return TextInsertResult.Failed("This looks like a password field. FlowBubble won't type here.")
+            return TextInsertResult.Failed("This looks like a password field. Your Bubble won't type here.")
         }
         val node = focusedEditable()
             ?: return TextInsertResult.Failed("No text field is focused. Tap a text field first, then hold the bubble.")
@@ -174,7 +174,7 @@ class FlowAccessibilityService : AccessibilityService() {
      */
     fun replaceRange(expectedFull: String, start: Int, end: Int, replacement: String): TextInsertResult {
         if (isPasswordFocused()) {
-            return TextInsertResult.Failed("This looks like a password field. FlowBubble won't edit it.")
+            return TextInsertResult.Failed("This looks like a password field. Your Bubble won't edit it.")
         }
         val node = focusedEditable()
             ?: return TextInsertResult.Failed("The text field is no longer focused.")
@@ -199,7 +199,7 @@ class FlowAccessibilityService : AccessibilityService() {
      */
     fun replaceFocusedFieldIf(expected: String, replacement: String): TextInsertResult {
         if (isPasswordFocused()) {
-            return TextInsertResult.Failed("This looks like a password field. FlowBubble won't edit it.")
+            return TextInsertResult.Failed("This looks like a password field. Your Bubble won't edit it.")
         }
         val node = focusedEditable()
             ?: return TextInsertResult.Failed("The text field is no longer focused.")
@@ -256,7 +256,7 @@ class FlowAccessibilityService : AccessibilityService() {
 
     private fun copyToClipboard(text: String) {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText("FlowBubble", text))
+        cm.setPrimaryClip(ClipData.newPlainText("Your Bubble", text))
         Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 
@@ -662,7 +662,7 @@ class FlowAccessibilityService : AccessibilityService() {
             note = if (guarded.isEmpty()) {
                 "I don't see a close or cancel button here, so nothing was tapped."
             } else {
-                "The only buttons here are $guarded. FlowBubble won't choose one of those for you."
+                "The only buttons here are $guarded. Your Bubble won't choose one of those for you."
             }
         )
     }
@@ -677,7 +677,7 @@ class FlowAccessibilityService : AccessibilityService() {
 
     fun clearFocusedField(): FieldActionOutcome {
         if (isPasswordFocused()) {
-            return FieldActionOutcome.Blocked("This looks like a password field. FlowBubble won't clear it.")
+            return FieldActionOutcome.Blocked("This looks like a password field. Your Bubble won't clear it.")
         }
         val node = focusedEditable()
             ?: return FieldActionOutcome.Blocked("No text field is focused, so there's nothing for me to clear.")
@@ -717,7 +717,7 @@ class FlowAccessibilityService : AccessibilityService() {
 
     fun selectAllFocused(): FieldActionOutcome {
         if (isPasswordFocused()) {
-            return FieldActionOutcome.Blocked("This looks like a password field. FlowBubble won't select it.")
+            return FieldActionOutcome.Blocked("This looks like a password field. Your Bubble won't select it.")
         }
         val node = focusedEditable()
             ?: return FieldActionOutcome.Blocked("No text field is focused, so there's nothing to select.")
@@ -739,12 +739,12 @@ class FlowAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Copies a selection. FlowBubble never reads the clipboard back, so the caller
+     * Copies a selection. Your Bubble never reads the clipboard back, so the caller
      * can only confirm that the field reported a selection, not what's on the clipboard.
      */
     fun copyFocused(): FieldActionOutcome {
         if (isPasswordFocused()) {
-            return FieldActionOutcome.Blocked("This looks like a password field. FlowBubble won't copy from it.")
+            return FieldActionOutcome.Blocked("This looks like a password field. Your Bubble won't copy from it.")
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             return FieldActionOutcome.Blocked("Copying from another app needs Android 9 or newer.")
@@ -760,7 +760,7 @@ class FlowAccessibilityService : AccessibilityService() {
             }
         }
         if (!copyCandidates().any { it.performAction(AccessibilityNodeInfo.ACTION_COPY) }) {
-            return FieldActionOutcome.Blocked("This app doesn't let FlowBubble copy.")
+            return FieldActionOutcome.Blocked("This app doesn't let Your Bubble copy.")
         }
         val length = captureSelection()?.selectedText?.length ?: 0
         return FieldActionOutcome.Done(
@@ -770,7 +770,7 @@ class FlowAccessibilityService : AccessibilityService() {
 
     fun pasteFocused(): FieldActionOutcome {
         if (isPasswordFocused()) {
-            return FieldActionOutcome.Blocked("This looks like a password field. FlowBubble won't paste into it.")
+            return FieldActionOutcome.Blocked("This looks like a password field. Your Bubble won't paste into it.")
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             return FieldActionOutcome.Blocked("Pasting into another app needs Android 9 or newer.")
@@ -821,7 +821,7 @@ class FlowAccessibilityService : AccessibilityService() {
     fun isResponsive(): Boolean = windows.isNotEmpty() || rootInActiveWindow != null
 
     /**
-     * The app a person is actually looking at. The active window can briefly be FlowBubble's own
+     * The app a person is actually looking at. The active window can briefly be Your Bubble's own
      * panel, and `rootInActiveWindow` is null mid-transition, so the topmost application window is
      * the reliable answer. Returns null when only our own overlay is on screen.
      */

@@ -94,9 +94,9 @@ object LocalLlmEngine {
         modelId: String
     ): String {
         val context = LocalModelStore.contextOrNull()
-            ?: error("FlowBubble has not opened its storage yet, so no on-device model can answer.")
+            ?: error("Your Bubble has not opened its storage yet, so no on-device model can answer.")
         val spec = LocalModelCatalog.find(modelId)
-            ?: error("'$modelId' is not a model FlowBubble knows how to run on this phone.")
+            ?: error("'$modelId' is not a model Your Bubble knows how to run on this phone.")
         if (!spec.roleCapable) {
             error("${spec.label} makes embeddings rather than answering, so no job can be routed to it.")
         }

@@ -175,7 +175,7 @@ private fun AppHeader(bubbleRunning: Boolean) {
                     withStyle(
                         SpanStyle(brush = Brush.horizontalGradient(listOf(Ink.Mist, Ink.Lavender)))
                     ) {
-                        append("FlowBubble")
+                        append("Your Bubble")
                     }
                 },
                 style = MaterialTheme.typography.headlineSmall,
@@ -411,7 +411,7 @@ private fun HomeScreen(
                 text = when {
                     bubbleRunning -> "Your voice layer is on"
                     permissions.coreReady -> "Everything is ready"
-                    else -> "Give FlowBubble a voice"
+                    else -> "Give Your Bubble a voice"
                 },
                 style = MaterialTheme.typography.headlineMedium,
                 color = Ink.Mist
@@ -424,7 +424,7 @@ private fun HomeScreen(
                     permissions.coreReady ->
                         "The three required permissions are on. Start the bubble and hold it to talk."
                     else ->
-                        "FlowBubble needs three Android permissions before it can appear above your apps."
+                        "Your Bubble needs three Android permissions before it can appear above your apps."
                 }
             )
             Spacer(Modifier.height(18.dp))
@@ -486,9 +486,9 @@ private fun HomeScreen(
             Spacer(Modifier.height(10.dp))
             BodyText(
                 if (captureActive) {
-                    "FlowBubble can read screen pixels with on-device OCR when you ask about the current screen. Frames stay in memory, password fields are skipped, and nothing is saved."
+                    "Your Bubble can read screen pixels with on-device OCR when you ask about the current screen. Frames stay in memory, password fields are skipped, and nothing is saved."
                 } else {
-                    "Optional. Turn this on so FlowBubble can read apps that hide their controls from accessibility \u2014 like some browsers, social apps, and games. Android shows a consent dialog each session, and you can stop it any time."
+                    "Optional. Turn this on so Your Bubble can read apps that hide their controls from accessibility \u2014 like some browsers, social apps, and games. Android shows a consent dialog each session, and you can stop it any time."
                 }
             )
             if (captureError != null) {
@@ -546,7 +546,7 @@ private fun HomeScreen(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            BodyText("Speak normally. FlowBubble strips filler words and inserts clean text at the cursor, or runs the action you asked for.")
+            BodyText("Speak normally. Your Bubble strips filler words and inserts clean text at the cursor, or runs the action you asked for.")
         }
 
         FlowCard(accent = Ink.Burgundy) {
@@ -555,7 +555,7 @@ private fun HomeScreen(
             listOf(
                 "Turn on the bubble and grant the permissions it explains.",
                 "Hold the bubble, speak, then release.",
-                "FlowBubble types, edits, opens, or asks before anything consequential."
+                "Your Bubble types, edits, opens, or asks before anything consequential."
             ).forEachIndexed { index, line ->
                 Row(
                     modifier = Modifier
@@ -609,7 +609,7 @@ private fun HomeScreen(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            BodyText("When a screen exposes nothing accessible, FlowBubble says so instead of guessing.")
+            BodyText("When a screen exposes nothing accessible, Your Bubble says so instead of guessing.")
         }
     }
 }
@@ -646,7 +646,7 @@ private fun SetupScreen(
     ) {
         ScreenIntro(
             title = "Permissions",
-            copy = "Android controls each capability below. FlowBubble enables a feature only after you grant it, and turns the feature off instead of pretending when access is missing."
+            copy = "Android controls each capability below. Your Bubble enables a feature only after you grant it, and turns the feature off instead of pretending when access is missing."
         )
 
         FlowCard(accent = Ink.LavenderDeep) {
@@ -674,7 +674,7 @@ private fun SetupScreen(
             Spacer(Modifier.height(16.dp))
             PermissionRow(
                 title = "Accessibility service",
-                description = "Lets FlowBubble read the focused field and on-screen controls, insert text, and perform the taps or scrolls you ask for. Passwords are skipped.",
+                description = "Lets Your Bubble read the focused field and on-screen controls, insert text, and perform the taps or scrolls you ask for. Passwords are skipped.",
                 granted = permissions.accessibility,
                 actionLabel = "Open accessibility settings",
                 onAction = { Permissions.openAccessibilitySettings(context) }
@@ -690,7 +690,7 @@ private fun SetupScreen(
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Text(
-                        text = "In Android's accessibility list, choose \u201CFlowBubble voice access\u201D.",
+                        text = "In Android's accessibility list, choose \u201CYour Bubble voice access\u201D.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Ink.Lavender,
                         lineHeight = 18.sp
@@ -720,7 +720,7 @@ private fun SetupScreen(
             Spacer(Modifier.height(16.dp))
             PermissionRow(
                 title = "Contacts",
-                description = "Finds the person you name for message and call commands. FlowBubble never uploads your contacts.",
+                description = "Finds the person you name for message and call commands. Your Bubble never uploads your contacts.",
                 granted = permissions.contacts,
                 actionLabel = "Allow contacts",
                 onAction = { contactsLauncher.launch(Manifest.permission.READ_CONTACTS) }
@@ -730,7 +730,7 @@ private fun SetupScreen(
             Spacer(Modifier.height(16.dp))
             PermissionRow(
                 title = "Notification access",
-                description = "Enables \u201Cread my notifications\u201D and \u201Cclear notifications\u201D. FlowBubble keeps only notifications that arrive while it is connected, in memory. It never reads your notification history.",
+                description = "Enables \u201Cread my notifications\u201D and \u201Cclear notifications\u201D. Your Bubble keeps only notifications that arrive while it is connected, in memory. It never reads your notification history.",
                 granted = permissions.notificationAccess,
                 actionLabel = "Open notification access",
                 onAction = { NotificationCenter.openSettings(context) }
@@ -742,7 +742,7 @@ private fun SetupScreen(
             Spacer(Modifier.height(12.dp))
             PermissionRow(
                 title = "Screen access",
-                description = "Lets FlowBubble read screen pixels with on-device OCR for apps that hide their controls. Android asks for consent each session. Frames stay in memory, password fields are skipped, and nothing is saved.",
+                description = "Lets Your Bubble read screen pixels with on-device OCR for apps that hide their controls. Android asks for consent each session. Frames stay in memory, password fields are skipped, and nothing is saved.",
                 granted = captureActive,
                 actionLabel = if (captureActive) "Stop screen access" else "Turn on screen access",
                 showActionWhenGranted = true,
@@ -753,7 +753,7 @@ private fun SetupScreen(
                 ErrorSurface(captureError)
             }
             Spacer(Modifier.height(10.dp))
-            BodyText("Without screen access, FlowBubble only sees what Android's accessibility API exposes. It says so instead of guessing when an app hides its controls.")
+            BodyText("Without screen access, Your Bubble only sees what Android's accessibility API exposes. It says so instead of guessing when an app hides its controls.")
         }
 
         FlowCard(accent = Ink.BurgundyDeep) {
@@ -761,7 +761,7 @@ private fun SetupScreen(
             Spacer(Modifier.height(12.dp))
             PermissionRow(
                 title = "Do Not Disturb access",
-                description = "Required by Android before any app can change Do Not Disturb. FlowBubble verifies the new state.",
+                description = "Required by Android before any app can change Do Not Disturb. Your Bubble verifies the new state.",
                 granted = permissions.dndAccess,
                 actionLabel = "Open access settings",
                 onAction = { Permissions.openDndSettings(context) }
@@ -811,7 +811,7 @@ private fun SetupScreen(
             )
             Spacer(Modifier.height(12.dp))
             BodyText(
-                "The required steps are microphone, overlay, and accessibility. Without accessibility, FlowBubble cannot type, edit, tap, or scroll. Screen and notification access are optional and can be turned off any time. You can change every permission later in Android settings."
+                "The required steps are microphone, overlay, and accessibility. Without accessibility, Your Bubble cannot type, edit, tap, or scroll. Screen and notification access are optional and can be turned off any time. You can change every permission later in Android settings."
             )
         }
         Spacer(Modifier.height(4.dp))

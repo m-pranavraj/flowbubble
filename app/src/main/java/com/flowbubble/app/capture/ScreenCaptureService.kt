@@ -159,7 +159,7 @@ class ScreenCaptureService : Service() {
         val reader = createReader(captureWidth, captureHeight)
         imageReader = reader
         val display = mediaProjection.createVirtualDisplay(
-            "FlowBubble screen",
+            "Your Bubble screen",
             captureWidth,
             captureHeight,
             captureDensity,

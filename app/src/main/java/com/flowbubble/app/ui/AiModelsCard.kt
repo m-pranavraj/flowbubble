@@ -55,7 +55,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Every AI setting in one place: the models FlowBubble can call, whether each one lives on somebody
+ * Every AI setting in one place: the models Your Bubble can call, whether each one lives on somebody
  * else's server or inside this phone, which one answers which job, and a round trip that proves a
  * model works before any of your text depends on it.
  */
@@ -99,7 +99,7 @@ internal fun AiModelsCard() {
 
         if (settings.profiles.isEmpty()) {
             BodyText(
-                "No model added yet. FlowBubble still cleans dictation, edits text, and runs tasks " +
+                "No model added yet. Your Bubble still cleans dictation, edits text, and runs tasks " +
                     "with on-device rules without one."
             )
             Spacer(Modifier.height(10.dp))
@@ -303,7 +303,7 @@ private fun OnDeviceSection(
         } else {
             val bytesUsed = statuses.filter { it.installed }.sumOf { it.onDiskBytes }
             BodyText(
-                "FlowBubble's models use ${LocalModelCatalog.formatBytes(bytesUsed)}, and this " +
+                "Your Bubble's models use ${LocalModelCatalog.formatBytes(bytesUsed)}, and this " +
                     "phone has ${LocalModelCatalog.formatBytes(LocalModelStore.freeDiskBytes(context))} " +
                     "free."
             )

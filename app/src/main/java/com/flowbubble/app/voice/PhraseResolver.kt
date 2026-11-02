@@ -13,7 +13,7 @@ sealed interface PhraseOutcome {
 }
 
 /**
- * Maps a misheard phrase back to a word FlowBubble can act on. Neither speech engine exposes a
+ * Maps a misheard phrase back to a word Your Bubble can act on. Neither speech engine exposes a
  * confidence value or n-best alternates, so this post-transcription rescoring against a known
  * vocabulary is the only place the correction can happen.
  */

@@ -1,7 +1,7 @@
 /*
  * Provider compatibility check.
  *
- * FlowBubble now talks to any OpenAI-compatible endpoint, so the release has to be proven against a
+ * Your Bubble now talks to any OpenAI-compatible endpoint, so the release has to be proven against a
  * server that is not OpenAI: no key, plain http, a path the client assembles itself, and a response
  * the app has to parse. This script starts such a server on the workstation, configures profiles
  * through the app's own Settings screen, and reads back what the server actually received.
@@ -19,7 +19,7 @@ const DEVICE = process.env.DEVICE || 'emulator-5554';
 const PKG = 'com.flowbubble.app';
 const PORT = Number(process.env.PORT || 8971);
 const ENDPOINT = `http://10.0.2.2:${PORT}/v1`;
-const LABEL = 'FlowBubble voice access';
+const LABEL = 'Your Bubble voice access';
 
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 const sleep = (ms) => Atomics.wait(sleepBuffer, 0, 0, ms);
@@ -348,7 +348,7 @@ try {
     pkgInfo.match(/versionName=\S+/)?.[0] ?? 'not installed'
   );
   if (!pkgInfo.includes('DebugSimulateReceiver')) {
-    throw new Error('install the debug APK first: adb install -r -t app/build/outputs/apk/debug/FlowBubble-1.0.2-debug.apk');
+    throw new Error('install the debug APK first: adb install -r -t app/build/outputs/apk/debug/YourBubble-1.0.2-debug.apk');
   }
 
   shell(`am force-stop ${PKG}`, { allowFail: true });
@@ -401,7 +401,7 @@ try {
   );
   record(
     'the client identifies itself with the running version',
-    /FlowBubble\/1\.0\.2/.test(defaultRequest?.agent ?? ''),
+    /YourBubble\/1\.0\.2/.test(defaultRequest?.agent ?? ''),
     defaultRequest?.agent ?? ''
   );
   record(

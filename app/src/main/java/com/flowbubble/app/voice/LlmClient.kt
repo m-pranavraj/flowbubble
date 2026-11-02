@@ -185,7 +185,7 @@ object LlmClient {
                 if (config.apiKey.isNotBlank()) {
                     setRequestProperty("Authorization", "Bearer ${config.apiKey}")
                 }
-                setRequestProperty("User-Agent", "FlowBubble/${BuildConfig.VERSION_NAME}")
+                setRequestProperty("User-Agent", "YourBubble/${BuildConfig.VERSION_NAME}")
             }
             try {
                 val messages = JSONArray()

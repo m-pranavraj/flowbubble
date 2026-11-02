@@ -1,4 +1,4 @@
-# FlowBubble release flow
+# Your Bubble release flow
 
 How a change reaches an installable APK on the releases page.
 
@@ -17,7 +17,7 @@ git checkout -b release/1.0.1
 git commit -am "Release 1.0.1"
 gh pr create --fill && gh pr merge --admin --squash   # or a normal reviewed merge
 git checkout main && git pull
-git tag -a v1.0.1 -m "FlowBubble 1.0.1"
+git tag -a v1.0.1 -m "Your Bubble 1.0.1"
 git push origin v1.0.1
 ```
 
@@ -37,9 +37,9 @@ plus the HTML test report as run artifacts. No signing material is needed for CI
 
 | Build | Artifact |
 | --- | --- |
-| debug | `FlowBubble-<versionName>-debug.apk` |
-| release, signing material present | `FlowBubble-<versionName>-release.apk` |
-| release, signing material missing | `FlowBubble-<versionName>-release-unsigned.apk` |
+| debug | `YourBubble-<versionName>-debug.apk` |
+| release, signing material present | `YourBubble-<versionName>-release.apk` |
+| release, signing material missing | `YourBubble-<versionName>-release-unsigned.apk` |
 
 The unsigned name is deliberate: an unsigned release can never be handed to a user by
 accident. The release workflow only publishes when `apksigner` verifies the APK it built.
@@ -76,7 +76,7 @@ Build and verify locally:
 ```bash
 ./gradlew :app:assembleRelease
 "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs \
-  app/build/outputs/apk/release/FlowBubble-1.0.0-release.apk
+  app/build/outputs/apk/release/YourBubble-1.0.0-release.apk
 ```
 
 `apksigner` lives in `$ANDROID_HOME/build-tools/<version>/`. A verified certificate means the
@@ -98,9 +98,9 @@ GitHub Release is published. Releases can always be published from a workstation
 
 ```bash
 gh release create v1.0.0 \
-  app/build/outputs/apk/release/FlowBubble-1.0.0-release.apk \
-  docs/assets/flowbubble-icon.png \
-  --title "FlowBubble v1.0.0" --notes "…"
+  app/build/outputs/apk/release/YourBubble-1.0.0-release.apk \
+  docs/assets/yourbubble-icon.png \
+  --title "Your Bubble v1.0.0" --notes "…"
 ```
 
 ## Installing a release build
@@ -111,7 +111,7 @@ permissions and its history:
 
 ```bash
 adb uninstall com.flowbubble.app
-adb install -r FlowBubble-1.0.0-release.apk
+adb install -r YourBubble-1.0.0-release.apk
 ```
 
 Then reopen the Setup screen and re-grant microphone, overlay, accessibility, notification
@@ -124,4 +124,4 @@ access, and screen capture. The debug transcript receiver does not exist in a re
 `ic_launcher_monochrome.xml` feed the adaptive icon in `mipmap-anydpi-v26/`. Artwork stays
 inside the 66dp safe zone because launchers crop the 108dp canvas to a circle, a squircle,
 or a rounded square. The monochrome layer is what themed-icon launchers recolor.
-`docs/assets/flowbubble-icon.png` is the raster brand asset used on the releases page.
+`docs/assets/yourbubble-icon.png` is the raster brand asset used on the releases page.

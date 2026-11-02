@@ -101,11 +101,11 @@ jobs:
           set -eu
           tag="${GITHUB_REF_NAME}"
           if gh release view "$tag" > /dev/null 2>&1; then
-            gh release upload "$tag" "${{ steps.apk.outputs.path }}" docs/assets/flowbubble-icon.png --clobber
+            gh release upload "$tag" "${{ steps.apk.outputs.path }}" docs/assets/yourbubble-icon.png --clobber
           else
             gh release create "$tag" \
               "${{ steps.apk.outputs.path }}" \
-              docs/assets/flowbubble-icon.png \
-              --title "FlowBubble $tag" \
-              --notes "Hold-to-talk and hands-free voice layer for Android: open, search and control any app, read the screen, and act on it with verified execution traces. Install \`FlowBubble-$tag-release.apk\` below, then complete the Setup screen for microphone, overlay, and accessibility access."
+              docs/assets/yourbubble-icon.png \
+              --title "Your Bubble $tag" \
+              --notes "Hold-to-talk and hands-free voice layer for Android: open, search and control any app, read the screen, and act on it with verified execution traces. Install \`YourBubble-$tag-release.apk\` below, then complete the Setup screen for microphone, overlay, and accessibility access."
           fi

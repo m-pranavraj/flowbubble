@@ -56,7 +56,7 @@ object SafetyPolicy {
         credentialPhrases.firstOrNull { phrase -> containsPhrase(normalized, phrase) }?.let { phrase ->
             return RiskAssessment(
                 RiskLevel.BLOCKED,
-                "This looks like a credential field (\"$phrase\"). FlowBubble won't touch passwords, PINs, or payment details."
+                "This looks like a credential field (\"$phrase\"). Your Bubble won't touch passwords, PINs, or payment details."
             )
         }
 
@@ -93,7 +93,7 @@ object SafetyPolicy {
         credentialPhrases.firstOrNull { phrase -> containsPhrase(normalized, phrase) }?.let { phrase ->
             return RiskAssessment(
                 RiskLevel.BLOCKED,
-                "This looks like a credential field (\"$phrase\"). FlowBubble won't type or submit here."
+                "This looks like a credential field (\"$phrase\"). Your Bubble won't type or submit here."
             )
         }
         if (normalized.isEmpty()) {

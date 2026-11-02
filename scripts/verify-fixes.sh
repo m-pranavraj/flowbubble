@@ -25,7 +25,7 @@ hist() {
 # grep reports a false positive.
 a11y_bound() {
   adb shell dumpsys accessibility 2>/dev/null \
-    | sed -n '/Bound services:/p' | grep -q "FlowBubble voice access"
+    | sed -n '/Bound services:/p' | grep -q "Your Bubble voice access"
 }
 
 ensure_a11y() {

@@ -1,11 +1,11 @@
-# FlowBubble world-class voice and any-app control — design
+# Your Bubble world-class voice and any-app control — design
 
 Date: 2026-10-30
 Status: approved for implementation (engine choice: ML Kit GenAI on-device speech + toolchain upgrade; in-app search: generic only)
 
 ## Goal
 
-Make FlowBubble usable as a primary input method on any Android app: open any app by voice including mispronounced names, search inside any app, drive any app through a verified agent, and transcribe accurately with no network dependency once a local model is installed.
+Make Your Bubble usable as a primary input method on any Android app: open any app by voice including mispronounced names, search inside any app, drive any app through a verified agent, and transcribe accurately with no network dependency once a local model is installed.
 
 ## Non-goals
 
@@ -53,7 +53,7 @@ No curated deep links. Find the app's own search affordance through accessibilit
 
 New accessibility primitives: long-press by label and at a point, directional swipe including horizontal, open overflow menu, clear focused field, select-all, copy, paste, and dismiss a dialog by its visible button label. Each becomes an `AgentAction`, is parsed by `LocalPlanner`, is offered to `LlmPlanner` within the fixed vocabulary, and is executed by `AgentRunner` with the same verification as existing steps.
 
-`SafetyPolicy` classifies allow, deny, install, pay, send, delete, and permission-dialog dismissals as confirmation-required. FlowBubble never taps a permission grant on the user's behalf, never touches password fields, and never sends a message, email, or payment.
+`SafetyPolicy` classifies allow, deny, install, pay, send, delete, and permission-dialog dismissals as confirmation-required. Your Bubble never taps a permission grant on the user's behalf, never touches password fields, and never sends a message, email, or payment.
 
 ## Testing
 

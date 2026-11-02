@@ -189,12 +189,12 @@ class OverlayService : Service(), OverlayUi {
             )
         }.isSuccess
         if (!started) {
-            Toast.makeText(this, "FlowBubble needs microphone permission.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Your Bubble needs microphone permission.", Toast.LENGTH_LONG).show()
             stopSelf()
             return
         }
         if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "FlowBubble needs the overlay permission.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Your Bubble needs the overlay permission.", Toast.LENGTH_LONG).show()
             stopSelf()
             return
         }
@@ -339,7 +339,7 @@ class OverlayService : Service(), OverlayUi {
             gravity = Gravity.TOP or Gravity.START
             this.x = x
             this.y = y
-            title = "FlowBubble"
+            title = "Your Bubble"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -398,7 +398,7 @@ class OverlayService : Service(), OverlayUi {
         if (!permissions.accessibility) {
             showSetupPanel(
                 "Accessibility is off",
-                "FlowBubble needs its accessibility service to type into fields and act on screen. Voice commands won't reach your apps until it's enabled.",
+                "Your Bubble needs its accessibility service to type into fields and act on screen. Voice commands won't reach your apps until it's enabled.",
                 primaryLabel = "Open accessibility settings",
                 primaryAction = { Permissions.openAccessibilitySettings(this) }
             )
@@ -1072,7 +1072,7 @@ class OverlayService : Service(), OverlayUi {
             showPanel(
                 PanelContent(
                     title = "AI model needed",
-                    body = "That edit needs an AI model. Add an API key in FlowBubble settings. Bullet lists, grammar, professional, and casual rewrites work without one.",
+                    body = "That edit needs an AI model. Add an API key in Your Bubble settings. Bullet lists, grammar, professional, and casual rewrites work without one.",
                     actions = listOf(
                         PanelAction("Open settings", primary = true) {
                             panel.close()
@@ -1182,7 +1182,7 @@ class OverlayService : Service(), OverlayUi {
             showPanel(
                 PanelContent(
                     title = "Couldn't undo",
-                    body = "The text field changed or lost focus, so FlowBubble won't overwrite it.",
+                    body = "The text field changed or lost focus, so Your Bubble won't overwrite it.",
                     actions = listOf(PanelAction("Close", primary = true) { panel.close() })
                 )
             )
@@ -1195,7 +1195,7 @@ class OverlayService : Service(), OverlayUi {
         val permissions = Permissions.snapshot(this)
         showPanel(
             PanelContent(
-                title = "FlowBubble",
+                title = "Your Bubble",
                 body = when {
                     !permissions.coreReady ->
                         "Some permissions are still missing. Finish setup to unlock voice control."
@@ -1207,7 +1207,7 @@ class OverlayService : Service(), OverlayUi {
                 actions = buildList {
                     add(
                         PanelAction(
-                            if (permissions.coreReady) "Open FlowBubble" else "Finish setup",
+                            if (permissions.coreReady) "Open Your Bubble" else "Finish setup",
                             primary = true
                         ) {
                             panel.close()
@@ -1265,7 +1265,7 @@ class OverlayService : Service(), OverlayUi {
     private fun accessibilityMissing(action: String) {
         showSetupPanel(
             "Accessibility is off",
-            "FlowBubble needs its accessibility service to $action. Android controls this permission.",
+            "Your Bubble needs its accessibility service to $action. Android controls this permission.",
             primaryLabel = "Open accessibility settings",
             primaryAction = { Permissions.openAccessibilitySettings(this) }
         )
@@ -1338,7 +1338,7 @@ class OverlayService : Service(), OverlayUi {
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             y = dp(120f)
-            title = "FlowBubble transcript"
+            title = "Your Bubble transcript"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -1359,7 +1359,7 @@ class OverlayService : Service(), OverlayUi {
 
     private fun copy(text: String) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FlowBubble", text))
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Your Bubble", text))
         Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 

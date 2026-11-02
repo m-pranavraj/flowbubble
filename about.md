@@ -1,4 +1,4 @@
-# FlowBubble — the whole project, end to end
+# Your Bubble — the whole project, end to end
 
 What exists today, what does not, what is worth improving in what exists, and what could be built
 next. Everything here is stated against the code at `v1.0.2` (commit `75feebd`), not against a plan.
@@ -15,7 +15,7 @@ next. Everything here is stated against the code at `v1.0.2` (commit `75feebd`),
 | Manifest permissions | 12 declared: `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `POST_NOTIFICATIONS`, `READ_CONTACTS`, `MODIFY_AUDIO_SETTINGS`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`, `VIBRATE`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. No camera, no storage, no location, no telephony, no SMS |
 | Service-level permissions | 3, all Android-enforced and user-granted outside the manifest: `BIND_ACCESSIBILITY_SERVICE`, `BIND_NOTIFICATION_LISTENER_SERVICE`, `BIND_QUICK_SETTINGS_TILE` |
 | Third-party libraries | 11 plus the Compose BOM — Compose UI/foundation/material3, activity, core-ktx, lifecycle, coroutines, `androidx.security:security-crypto` for the key store, ML Kit text-recognition and ML Kit GenAI speech-recognition. JUnit is the only test dependency; no DI, no database, no networking or image library |
-| Release artifact | `FlowBubble-1.0.2-release.apk`, 53,004,004 bytes, V2-signed with the FlowBubble key; a 28,226,954-byte release AAB for Play |
+| Release artifact | `FlowBubble-1.0.2-release.apk`, 53,004,004 bytes, V2-signed with the Your Bubble key; a 28,226,954-byte release AAB for Play |
 | Distribution | GitHub Releases only. Not a Play listing — Play restricts general-purpose automation through the Accessibility API |
 
 ## 2. What is actually there
@@ -306,7 +306,7 @@ Grouped by the mechanism that makes them possible, with what each would actually
 
 ## 7. Non-negotiables for all of the above
 
-Anything merged into FlowBubble must keep these, which is the product's whole claim to be trusted:
+Anything merged into Your Bubble must keep these, which is the product's whole claim to be trusted:
 
 - Never bypass a lock screen, authentication or a CAPTCHA.
 - Never read or write passwords or payment credentials; skip OCR while a password field is focused and

@@ -44,7 +44,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: FlowBubble-debug-apk
+          name: YourBubble-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
 

@@ -10,7 +10,7 @@ ADB="C:/Users/Pranav/AppData/Local/Android/Sdk/platform-tools/adb.exe"
 DEV="-s emulator-5556"
 APK="app/build/outputs/apk/debug/app-debug.apk"
 PKG="com.flowbubble.app"
-LABEL="FlowBubble voice access"
+LABEL="Your Bubble voice access"
 OUT="verify/hindi"
 mkdir -p "$OUT"
 

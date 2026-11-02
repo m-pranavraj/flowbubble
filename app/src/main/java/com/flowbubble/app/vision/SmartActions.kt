@@ -7,7 +7,7 @@ enum class ActionEntityKind { PHONE, EMAIL, URL, ADDRESS }
 data class ActionEntity(val kind: ActionEntityKind, val value: String, val display: String)
 
 /**
- * Finds things on screen that FlowBubble can act on. Detection only; nothing here
+ * Finds things on screen that Your Bubble can act on. Detection only; nothing here
  * ever dials, mails, opens, or navigates on its own.
  */
 object SmartActions {

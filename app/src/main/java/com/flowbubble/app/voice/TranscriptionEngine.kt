@@ -11,7 +11,7 @@ enum class TranscriptionFailure {
 }
 
 /**
- * Everything the rest of FlowBubble needs to know about an utterance, independent of
+ * Everything the rest of Your Bubble needs to know about an utterance, independent of
  * which backend produced it.
  */
 interface TranscriptionListener {

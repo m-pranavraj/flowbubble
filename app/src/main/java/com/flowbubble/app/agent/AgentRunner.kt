@@ -151,13 +151,13 @@ class AgentRunner(
             if (!Prefs.agentLlmEnabled(context) || !LlmClient.isConfigured(context, AiRole.Plan)) {
                 return AgentOutcome.Failed(
                     "I can run multi-step search, open, type, tap, and scroll requests on my own. " +
-                        "For free-form screen tasks, turn on AI planning in FlowBubble settings and configure a model."
+                        "For free-form screen tasks, turn on AI planning in Your Bubble settings and configure a model."
                 )
             }
             val service = FlowAccessibilityService.instance
                 ?: return AgentOutcome.Failed(
                     "Accessibility is off, so I can't see or act on the screen. " +
-                        "Enable FlowBubble voice access in Android settings."
+                        "Enable Your Bubble voice access in Android settings."
                 )
             val endpoint = LlmClient.endpointLabel(context, AiRole.Plan)
             val approved = confirm(
@@ -293,7 +293,7 @@ class AgentRunner(
                 val service = FlowAccessibilityService.instance
                     ?: return AgentOutcome.Failed(
                         "Accessibility is off, so I can't see or act on the screen. " +
-                            "Enable FlowBubble voice access in Android settings.",
+                            "Enable Your Bubble voice access in Android settings.",
                         trace(OutcomeKind.FAILED, "I couldn't see the screen.")
                     )
                 val now = observe(service, if (first == null) FIRST_REVISION_WAIT_MS else REVISION_WAIT_MS)
@@ -661,7 +661,7 @@ class AgentRunner(
             RiskLevel.CONFIRM -> {
                 val approved = confirm(
                     title = "Tap \u201C${target.label}\u201D?",
-                    body = risk.reason + " FlowBubble will only tap it if you approve."
+                    body = risk.reason + " Your Bubble will only tap it if you approve."
                 )
                 if (!approved) return StepOutcome(cancelled = true)
             }
@@ -702,7 +702,7 @@ class AgentRunner(
             RiskLevel.CONFIRM -> {
                 val approved = confirm(
                     title = "Hold \u201C${target.label}\u201D down?",
-                    body = risk.reason + " FlowBubble will only hold it if you approve."
+                    body = risk.reason + " Your Bubble will only hold it if you approve."
                 )
                 if (!approved) return StepOutcome(cancelled = true)
             }
@@ -961,7 +961,7 @@ class AgentRunner(
             RiskLevel.CONFIRM -> {
                 val approved = confirm(
                     title = "Tap \u201C$label\u201D?",
-                    body = risk.reason + " FlowBubble will only tap it if you approve."
+                    body = risk.reason + " Your Bubble will only tap it if you approve."
                 )
                 if (!approved) return StepOutcome(cancelled = true)
             }
@@ -1122,7 +1122,7 @@ class AgentRunner(
             RiskLevel.CONFIRM -> {
                 val approved = confirm(
                     title = "Tap \u201C$label\u201D?",
-                    body = risk.reason + " FlowBubble will only tap it if you approve."
+                    body = risk.reason + " Your Bubble will only tap it if you approve."
                 )
                 if (!approved) return StepOutcome(cancelled = true)
             }
@@ -1158,7 +1158,7 @@ class AgentRunner(
         val approved = confirm(
             title = "Use the back gesture?",
             body = (reason ?: "I couldn't read a close button here.") +
-                " FlowBubble can press back instead, which closes keyboards, popups, and this screen."
+                " Your Bubble can press back instead, which closes keyboards, popups, and this screen."
         )
         if (!approved) return StepOutcome(cancelled = true)
 
@@ -1185,7 +1185,7 @@ class AgentRunner(
     private suspend fun askAi(action: AgentAction.AskAi): StepOutcome {
         val service = FlowAccessibilityService.instance ?: return accessibilityMissing()
         if (!LlmClient.isConfigured(context, AiRole.ScreenAnswer)) {
-            return StepOutcome(false, note = "No AI model is configured. Add one in FlowBubble settings.")
+            return StepOutcome(false, note = "No AI model is configured. Add one in Your Bubble settings.")
         }
         val model = readModel(service, includePixels = true)
         val text = model?.readableText(5000).orEmpty()
@@ -1339,7 +1339,7 @@ class AgentRunner(
 
     /**
      * Waits for the named app to become the foreground app. Comparing against a package read
-     * before the launch is fragile: that one read can land on FlowBubble's own panel or on the
+     * before the launch is fragile: that one read can land on Your Bubble's own panel or on the
      * null gap between activities, which previously turned a real launch into a blind 900 ms sleep.
      */
     private suspend fun awaitForeground(
@@ -1543,7 +1543,7 @@ class AgentRunner(
     private fun accessibilityMissing(): StepOutcome = StepOutcome(
         false,
         note = "Accessibility is off, so I can't see or act on the screen. " +
-            "Enable FlowBubble voice access in Android settings."
+            "Enable Your Bubble voice access in Android settings."
     )
 
     private fun captureHint(model: ScreenModel): String = when {

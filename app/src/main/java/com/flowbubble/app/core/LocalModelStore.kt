@@ -88,7 +88,7 @@ sealed class LocalVerdict {
         is NotEnoughDisk -> "Needs ${LocalModelCatalog.formatBytes(neededBytes)} free to download and " +
             "this phone has ${LocalModelCatalog.formatBytes(freeDiskBytes)}."
         is NeedsLicenceAcceptance -> "The publisher only serves this file after you accept its licence " +
-            "in a browser, so FlowBubble cannot download it for you."
+            "in a browser, so Your Bubble cannot download it for you."
         is NotATextModel -> reason
     }
 }
@@ -197,7 +197,7 @@ object LocalModelCatalog {
             oneLine = "Local embeddings for memory. 165 MB, and not a text model.",
             honestNote = "This is the 165 MB file people mean when they talk about a small local " +
                 "model. It turns text into vectors for on-device memory search; it does not write " +
-                "answers, so no AI job can be routed to it. FlowBubble's memory features would use " +
+                "answers, so no AI job can be routed to it. Your Bubble's memory features would use " +
                 "it, not the dictation or summary paths."
         )
     )
@@ -347,7 +347,7 @@ object LocalModelStore {
         return { modelId -> isReadyNow(context, modelId) }
     }
 
-    /** Free bytes on the partition FlowBubble's own files live on. Honest, and only its own partition. */
+    /** Free bytes on the partition Your Bubble's own files live on. Honest, and only its own partition. */
     fun freeDiskBytes(context: Context): Long = runCatching {
         StatFs(context.applicationContext.filesDir.absolutePath).availableBytes
     }.getOrDefault(0L)
@@ -377,7 +377,7 @@ object LocalModelStore {
     private fun manager(context: Context): ActivityManager? =
         context.applicationContext.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
 
-    /** Total bytes FlowBubble's downloaded models are taking, for the "uses X of your storage" line. */
+    /** Total bytes Your Bubble's downloaded models are taking, for the "uses X of your storage" line. */
     fun bytesUsed(context: Context): Long =
         directory(context).listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
 
@@ -402,7 +402,7 @@ object LocalModelStore {
         LocalModelCatalog.all.map { status(context, it) }
 
     /**
-     * Streams one model file into FlowBubble's private storage. The caller has to have shown the
+     * Streams one model file into Your Bubble's private storage. The caller has to have shown the
      * size and taken a tap; this re-checks the room before writing, downloads to a `.part` name so a
      * half file can never be mistaken for a working model, and only renames once the byte count
      * matches what the listing promised.
@@ -416,7 +416,7 @@ object LocalModelStore {
             val app = context.applicationContext
             attach(app)
             val spec = LocalModelCatalog.find(modelId)
-                ?: error("That model is not in the list FlowBubble ships.")
+                ?: error("That model is not in the list Your Bubble ships.")
             if (spec.licenseGated) {
                 error("${spec.label} is only served after you accept its licence in a browser.")
             }
@@ -444,7 +444,7 @@ object LocalModelStore {
                 connectTimeout = 20_000
                 readTimeout = 60_000
                 instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "FlowBubble")
+                setRequestProperty("User-Agent", "YourBubble")
             }
             try {
                 val code = connection.responseCode
@@ -478,7 +478,7 @@ object LocalModelStore {
                     "The download stopped at ${LocalModelCatalog.formatBytes(written)} of " +
                         "${LocalModelCatalog.formatBytes(spec.sizeBytes)}. Try again."
                 }
-                check(part.renameTo(target)) { "FlowBubble could not save ${spec.label} in its own storage." }
+                check(part.renameTo(target)) { "Your Bubble could not save ${spec.label} in its own storage." }
                 onProgress(LocalDownloadEvent.Completed)
             } finally {
                 runCatching { part.delete() }

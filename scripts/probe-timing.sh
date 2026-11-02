@@ -16,7 +16,7 @@ adb() { "$ADB_EXE" -s "$SERIAL" "$@"; }
 
 a11y_bound() {
   adb shell dumpsys accessibility 2>/dev/null \
-    | sed -n '/Bound services:/p' | grep -q "FlowBubble voice access"
+    | sed -n '/Bound services:/p' | grep -q "Your Bubble voice access"
 }
 
 # The system reconciles enabled services asynchronously after pm clear, so a grant written too

@@ -102,7 +102,7 @@ class PanelStyleTest {
     @Test
     fun `a one line acknowledgement wears no eyebrow`() {
         assertEquals("", PanelStyle.eyebrow(PanelTone.Info))
-        val content = panel(title = "FlowBubble", body = "Hold the bubble and speak.")
+        val content = panel(title = "Your Bubble", body = "Hold the bubble and speak.")
         assertEquals(PanelTone.Info, PanelStyle.toneOf(content))
     }
 
@@ -275,7 +275,7 @@ class PanelStyleTest {
     @Test
     fun `two short buttons share a row and a long pair stacks`() {
         assertEquals(ActionLayout.Row, PanelStyle.layoutOf(listOf("Approve", "Cancel")))
-        assertEquals(ActionLayout.Stack, PanelStyle.layoutOf(listOf("Open FlowBubble settings", "Cancel")))
+        assertEquals(ActionLayout.Stack, PanelStyle.layoutOf(listOf("Open Your Bubble settings", "Cancel")))
         assertEquals(ActionLayout.Single, PanelStyle.layoutOf(listOf("Done")))
         assertEquals(ActionLayout.Single, PanelStyle.layoutOf(emptyList()))
     }
@@ -303,7 +303,7 @@ class PanelStyleTest {
     @Test
     fun `row labels are compact and stacked labels keep their wording`() {
         assertEquals("NOT NOW", PanelStyle.buttonLabel("Not now", ActionLayout.Row))
-        assertEquals("Open FlowBubble settings", PanelStyle.buttonLabel("Open FlowBubble settings", ActionLayout.Stack))
+        assertEquals("Open Your Bubble settings", PanelStyle.buttonLabel("Open Your Bubble settings", ActionLayout.Stack))
     }
 
     @Test

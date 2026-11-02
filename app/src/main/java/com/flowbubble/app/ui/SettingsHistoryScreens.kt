@@ -155,7 +155,7 @@ internal fun SettingsScreen(onClearHistory: () -> Unit) {
     ) {
         ScreenIntro(
             title = "Settings",
-            copy = "Everything on this screen is optional. Without an AI model, FlowBubble still cleans dictation and edits with on-device rules."
+            copy = "Everything on this screen is optional. Without an AI model, Your Bubble still cleans dictation and edits with on-device rules."
         )
 
         AiModelsCard()
@@ -200,7 +200,7 @@ internal fun SettingsScreen(onClearHistory: () -> Unit) {
         FlowCard(accent = if (handsFree) Ink.Jade else Ink.LavenderDeep) {
             SectionLabel("Hands-free")
             Spacer(Modifier.height(8.dp))
-            BodyText("Say \u201CHello Bubble\u201D, then your command. FlowBubble listens only while this switch is on and the screen is on, so nothing in another app can trigger a command by accident.")
+            BodyText("Say \u201CHello Bubble\u201D, then your command. Your Bubble listens only while this switch is on and the screen is on, so nothing in another app can trigger a command by accident.")
             Spacer(Modifier.height(8.dp))
             Hairline()
             FlowRow(
@@ -343,7 +343,7 @@ internal fun SettingsScreen(onClearHistory: () -> Unit) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "FlowBubble ${BuildConfig.VERSION_NAME} \u00B7 No analytics, no background uploads",
+                text = "Your Bubble ${BuildConfig.VERSION_NAME} \u00B7 No analytics, no background uploads",
                 style = MaterialTheme.typography.labelSmall,
                 letterSpacing = 0.8.sp,
                 color = Ink.Whisper
@@ -537,7 +537,7 @@ private fun SpeechEngineCard(language: String) {
             status == ModelStatus.UNAVAILABLE ->
                 "The on-device model doesn't offer $language on this device, so the system recognizer is used."
             choice == EngineChoice.SYSTEM ->
-                "FlowBubble uses your device's recognizer. Nothing new is downloaded."
+                "Your Bubble uses your device's recognizer. Nothing new is downloaded."
             else ->
                 "Automatic uses the on-device model whenever it is ready, and the system recognizer otherwise."
         }
@@ -556,7 +556,7 @@ private fun SpeechEngineCard(language: String) {
             )
             Spacer(Modifier.height(10.dp))
             BodyText(
-                "Google Play services performs the download. FlowBubble never starts it on its own, " +
+                "Google Play services performs the download. Your Bubble never starts it on its own, " +
                     "and turning the engine back to System recognizer leaves the model untouched."
             )
         }
@@ -618,7 +618,7 @@ internal fun HistoryScreen(history: List<HistoryEntry>, onClearHistory: () -> Un
     ) {
         ScreenIntro(
             title = "History",
-            copy = "A local record of what FlowBubble understood and did. Full transcripts, audio, and screen text are not stored."
+            copy = "A local record of what Your Bubble understood and did. Full transcripts, audio, and screen text are not stored."
         )
 
         if (history.isEmpty()) {

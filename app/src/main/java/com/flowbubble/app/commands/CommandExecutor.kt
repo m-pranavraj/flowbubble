@@ -72,7 +72,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * A cold start can take several seconds on this class of device, so this is a cap rather than a
- * sleep: the wait returns on the first read that shows the app. FlowBubble's own overlay is not
+ * sleep: the wait returns on the first read that shows the app. Your Bubble's own overlay is not
  * an app window, and the foreground read ignores it.
  */
 private const val APP_OPEN_TIMEOUT_MS = 20_000L
@@ -227,7 +227,7 @@ class CommandExecutor(
     }
 
     /**
-     * An app only counts as opened when Android puts it in the foreground. FlowBubble's own
+     * An app only counts as opened when Android puts it in the foreground. Your Bubble's own
      * overlay can briefly own the active window, so seeing ourselves is inconclusive, not a failure.
      */
     private suspend fun confirmForeground(match: AppMatch) {
@@ -491,9 +491,9 @@ class CommandExecutor(
             ui.showPanel(
                 PanelContent(
                     title = "Contacts permission needed",
-                    body = "FlowBubble needs contact access to find ${command.contact}. You can grant it in the app setup.",
+                    body = "Your Bubble needs contact access to find ${command.contact}. You can grant it in the app setup.",
                     actions = listOf(
-                        PanelAction("Open FlowBubble setup", primary = true) {
+                        PanelAction("Open Your Bubble setup", primary = true) {
                             ui.closePanel()
                             MainActivity.open(context, MainActivity.SCREEN_SETUP)
                         },
@@ -645,9 +645,9 @@ class CommandExecutor(
             ui.showPanel(
                 PanelContent(
                     title = "Contacts permission needed",
-                    body = "FlowBubble needs contact access to find ${command.contact}. You can grant it in the app setup.",
+                    body = "Your Bubble needs contact access to find ${command.contact}. You can grant it in the app setup.",
                     actions = listOf(
-                        PanelAction("Open FlowBubble setup", primary = true) {
+                        PanelAction("Open Your Bubble setup", primary = true) {
                             ui.closePanel()
                             MainActivity.open(context, MainActivity.SCREEN_SETUP)
                         },
@@ -923,7 +923,7 @@ class CommandExecutor(
                 ui.showPanel(
                     PanelContent(
                         title = "I couldn't start watching",
-                        body = ScreenSession.error() ?: "FlowBubble needs accessibility access to read the screen.",
+                        body = ScreenSession.error() ?: "Your Bubble needs accessibility access to read the screen.",
                         actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
                     )
                 )
@@ -1098,7 +1098,7 @@ class CommandExecutor(
             RiskLevel.CONFIRM -> {
                 val approved = confirm(
                     title = "Tap \u201C${command.target}\u201D?",
-                    body = risk.reason + " FlowBubble will only tap it if you approve.",
+                    body = risk.reason + " Your Bubble will only tap it if you approve.",
                     approveLabel = "Tap it"
                 )
                 if (!approved) {
@@ -1194,7 +1194,7 @@ class CommandExecutor(
             val detail = model?.captureError
                 ?: model?.ocrError
                 ?: if (ownScreen) {
-                    "This is FlowBubble's own screen, and I skip my own interface through accessibility. " +
+                    "This is Your Bubble's own screen, and I skip my own interface through accessibility. " +
                         "Open another app, or turn on screen access so I can read pixels."
                 } else {
                     "I couldn't read any text on this screen."
@@ -1508,7 +1508,7 @@ class CommandExecutor(
             ui.showPanel(
                 PanelContent(
                     title = "No recent notifications",
-                    body = "FlowBubble keeps notifications from this session in memory only, and none have arrived yet. " +
+                    body = "Your Bubble keeps notifications from this session in memory only, and none have arrived yet. " +
                         "It never reads your notification history.",
                     actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
                 )
@@ -1552,7 +1552,7 @@ class CommandExecutor(
             ui.showPanel(
                 PanelContent(
                     title = "Nothing to clear",
-                    body = "I only dismiss notifications that arrived while FlowBubble was connected. " +
+                    body = "I only dismiss notifications that arrived while Your Bubble was connected. " +
                         "Ongoing ones, like music or navigation, are never closed.",
                     actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
                 )
@@ -1563,7 +1563,7 @@ class CommandExecutor(
         val approved = confirm(
             title = "Clear notifications?",
             body = "I'll dismiss $dismissible notification${if (dismissible == 1) "" else "s"} that arrived since " +
-                "FlowBubble connected. Ongoing ones stay. This can't be undone.",
+                "Your Bubble connected. Ongoing ones stay. This can't be undone.",
             approveLabel = "Dismiss"
         )
         if (!approved) return
@@ -1595,7 +1595,7 @@ class CommandExecutor(
             PanelContent(
                 title = "Notification access needed",
                 body = "Android hides notifications from apps unless you grant notification access in system settings. " +
-                    "FlowBubble only keeps what arrives after you grant it, and never stores it.",
+                    "Your Bubble only keeps what arrives after you grant it, and never stores it.",
                 actions = notificationAccessActions()
             )
         )
@@ -1641,10 +1641,10 @@ class CommandExecutor(
             ui.showPanel(
                 PanelContent(
                     title = "AI model not configured",
-                    body = "Add an OpenAI-compatible endpoint and key in FlowBubble settings. " +
+                    body = "Add an OpenAI-compatible endpoint and key in Your Bubble settings. " +
                         "Screen answers and translation stay off until you do.",
                     actions = listOf(
-                        PanelAction("Open FlowBubble settings", primary = true) {
+                        PanelAction("Open Your Bubble settings", primary = true) {
                             ui.closePanel()
                             MainActivity.open(context, MainActivity.SCREEN_SETTINGS)
                         },
@@ -1788,7 +1788,7 @@ class CommandExecutor(
             ui.showPanel(
                 PanelContent(
                     title = "Couldn't undo",
-                    body = "The text field changed or lost focus, so FlowBubble won't overwrite it.",
+                    body = "The text field changed or lost focus, so Your Bubble won't overwrite it.",
                     actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
                 )
             )
@@ -1861,10 +1861,10 @@ class CommandExecutor(
             ui.showPanel(
                 PanelContent(
                     title = "AI model needed",
-                    body = "That rewrite needs an AI model. Add an OpenAI-compatible endpoint in FlowBubble settings. " +
+                    body = "That rewrite needs an AI model. Add an OpenAI-compatible endpoint in Your Bubble settings. " +
                         "Professional, casual, and grammar rewrites work on-device without one.",
                     actions = listOf(
-                        PanelAction("Open FlowBubble settings", primary = true) {
+                        PanelAction("Open Your Bubble settings", primary = true) {
                             ui.closePanel()
                             MainActivity.open(context, MainActivity.SCREEN_SETTINGS)
                         },
@@ -2441,13 +2441,13 @@ class CommandExecutor(
                     title = "No email address",
                     body = if (needsContacts) {
                         "I need contact access to look up an email address for \u201C$to\u201D. " +
-                            "Grant contacts access in FlowBubble setup, or say the full address."
+                            "Grant contacts access in Your Bubble setup, or say the full address."
                     } else {
                         "I couldn't find an email address for \u201C$to\u201D. Say the full address, or add it to your contacts."
                     },
                     actions = if (needsContacts) {
                         listOf(
-                            PanelAction("Open FlowBubble setup", primary = true) {
+                            PanelAction("Open Your Bubble setup", primary = true) {
                                 ui.closePanel()
                                 MainActivity.open(context, MainActivity.SCREEN_SETUP)
                             },
@@ -2466,7 +2466,7 @@ class CommandExecutor(
                 PanelContent(
                     title = "Email draft opened",
                     body = "Subject: ${subject.take(120)}\n\nReview the draft and press Send yourself. " +
-                        "FlowBubble never sends email.",
+                        "Your Bubble never sends email.",
                     autoDismissMs = 2800
                 )
             )
@@ -2497,7 +2497,7 @@ class CommandExecutor(
                 PanelContent(
                     title = "Calendar opened",
                     body = "I added the title \u201C${title.take(120)}\u201D. Set the time and press Save yourself. " +
-                        "FlowBubble never saves events.",
+                        "Your Bubble never saves events.",
                     autoDismissMs = 2800
                 )
             )
@@ -2572,7 +2572,7 @@ class CommandExecutor(
                     ui.showPanel(
                         PanelContent(
                             title = "Dialer opened",
-                            body = "Press the call button to dial. FlowBubble never places calls itself.",
+                            body = "Press the call button to dial. Your Bubble never places calls itself.",
                             autoDismissMs = 2400
                         )
                     )
@@ -2848,7 +2848,7 @@ class CommandExecutor(
         ui.showPanel(
             PanelContent(
                 title = "Accessibility is off",
-                body = "FlowBubble needs its accessibility service enabled to $action. Android controls this permission.",
+                body = "Your Bubble needs its accessibility service enabled to $action. Android controls this permission.",
                 actions = listOf(
                     PanelAction("Open accessibility settings", primary = true) {
                         ui.closePanel()
@@ -2864,17 +2864,17 @@ class CommandExecutor(
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val resolved = intent.resolveActivity(context.packageManager)
         if (resolved == null) {
-            android.util.Log.w("FlowBubble", "unresolved intent: $intent")
+            android.util.Log.w("YourBubble", "unresolved intent: $intent")
             return false
         }
         return runCatching { context.startActivity(intent) }
-            .onFailure { android.util.Log.w("FlowBubble", "start failed for $intent", it) }
+            .onFailure { android.util.Log.w("YourBubble", "start failed for $intent", it) }
             .isSuccess
     }
 
     private fun copyToClipboard(text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("FlowBubble", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("Your Bubble", text))
         Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 

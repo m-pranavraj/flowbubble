@@ -28,7 +28,7 @@ import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Continuously watches the screen while FlowBubble works.
+ * Continuously watches the screen while Your Bubble works.
  *
  * It consumes the frame stream [ScreenCaptureService] already produces and turns it into versioned
  * [LiveSnapshot]s: every frame is fingerprinted on a coarse grid (a few hundred integer reads, on
@@ -452,7 +452,7 @@ object ScreenSession {
             val tree = readTreeNow()
             if (tree == null) {
                 if (FlowAccessibilityService.instance == null) {
-                    lastError = "Accessibility access isn't on, so FlowBubble can't read the screen."
+                    lastError = "Accessibility access isn't on, so Your Bubble can't read the screen."
                 }
                 continue
             }

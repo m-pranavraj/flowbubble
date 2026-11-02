@@ -74,14 +74,14 @@ object CapabilityRouter {
 
         is Command.SendMessage ->
             if (!context.contacts) Route.Gated("message", listOf(contactsGap()))
-            else Route.Ready("message", "sms draft", "FlowBubble opens the draft; you press send.")
+            else Route.Ready("message", "sms draft", "Your Bubble opens the draft; you press send.")
 
         is Command.OpenChat ->
             if (!context.contacts) Route.Gated("open_chat", listOf(contactsGap()))
             else Route.Ready(
                 "open_chat",
                 "chat deep link",
-                "FlowBubble opens the conversation; you write and send."
+                "Your Bubble opens the conversation; you write and send."
             )
 
         is Command.Dnd ->
@@ -141,13 +141,13 @@ object CapabilityRouter {
 
     private fun accessibilityGap() = Gap(
         "Voice access is off",
-        "FlowBubble needs the accessibility switch to see or touch another app's screen.",
+        "Your Bubble needs the accessibility switch to see or touch another app's screen.",
         SettingsTarget.ACCESSIBILITY
     )
 
     private fun accessibilityStaleGap() = Gap(
         "Voice access stopped responding",
-        "Android still lists FlowBubble as enabled, but it can no longer see any window. " +
+        "Android still lists Your Bubble as enabled, but it can no longer see any window. " +
             "Switch it off and on in Accessibility to reconnect it.",
         SettingsTarget.ACCESSIBILITY
     )
@@ -167,7 +167,7 @@ object CapabilityRouter {
     private fun notificationGap() = Gap(
         "Notification access",
         "Android keeps every app's notifications behind a separate switch. " +
-            "FlowBubble holds them in memory for this session only.",
+            "Your Bubble holds them in memory for this session only.",
         SettingsTarget.NOTIFICATION_LISTENER
     )
 

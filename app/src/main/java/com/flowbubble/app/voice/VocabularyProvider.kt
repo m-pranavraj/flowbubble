@@ -6,7 +6,7 @@ import com.flowbubble.app.commands.AppResolver
 import com.flowbubble.app.core.RoutineStore
 
 /**
- * The names FlowBubble can actually act on. Rescoring a mishearing needs something to measure it
+ * The names Your Bubble can actually act on. Rescoring a mishearing needs something to measure it
  * against, and an installed-apps lookup on every utterance is the expensive part, so it is cached.
  */
 class VocabularyProvider(private val context: Context) {

@@ -69,7 +69,7 @@ android {
         outputs.forEach { output ->
             if (output is com.android.build.gradle.internal.api.BaseVariantOutputImpl) {
                 val type = if (unsignedRelease) "release-unsigned" else buildType.name
-                output.outputFileName = "FlowBubble-${versionName}-${type}.apk"
+                output.outputFileName = "YourBubble-${versionName}-${type}.apk"
             }
         }
     }

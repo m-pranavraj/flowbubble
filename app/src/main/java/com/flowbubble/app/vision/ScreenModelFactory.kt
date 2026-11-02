@@ -20,7 +20,7 @@ object ScreenModelFactory {
                 }
                 !ScreenCapture.isActive -> {
                     captureError = ScreenCapture.lastError
-                        ?: "Screen access isn't on for this session. Grant it to let FlowBubble read pixels."
+                        ?: "Screen access isn't on for this session. Grant it to let Your Bubble read pixels."
                 }
                 else -> {
                     val frame = ScreenCapture.awaitFrame()

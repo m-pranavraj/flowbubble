@@ -4,7 +4,7 @@ import java.net.URI
 import java.util.Locale
 
 /**
- * The jobs that can each be given their own model. Six roles, matching the six things FlowBubble
+ * The jobs that can each be given their own model. Six roles, matching the six things Your Bubble
  * asks a model to do; a user can route them all to one cheap local model or spread them over
  * several providers.
  */

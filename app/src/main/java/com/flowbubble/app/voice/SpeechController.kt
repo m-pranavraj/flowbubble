@@ -141,6 +141,6 @@ class SpeechController(private val context: Context) {
 
     private companion object {
         const val MISSING_MODEL_HINT =
-            "The on-device model isn't installed, so FlowBubble is using the system recognizer."
+            "The on-device model isn't installed, so Your Bubble is using the system recognizer."
     }
 }

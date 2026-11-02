@@ -48,7 +48,7 @@ const size = () => {
 function accessibilityState() {
   const out = shell('dumpsys accessibility', { allowFail: true, timeout: 20000 });
   const crashed = out.split('\n').find((line) => line.trim().startsWith('Crashed services:')) || '';
-  return { bound: out.includes('FlowBubble voice access'), crashed: crashed.includes(PKG) };
+  return { bound: out.includes('Your Bubble voice access'), crashed: crashed.includes(PKG) };
 }
 
 function turnBubbleOn() {
@@ -111,7 +111,7 @@ sleep(1500);
  */
 const windows = shell('dumpsys window windows', { allowFail: true, timeout: 30000 });
 const focus = shell('dumpsys window', { allowFail: true, timeout: 30000 }).match(/mCurrentFocus=Window\{\S+ u0 (\S+)\//)?.[1] ?? '';
-const block = windows.match(/Window\{\S+ u0 FlowBubble\}:[\s\S]*?(?=\n\s*Window #|\n\s*$)/)?.[0] ?? '';
+const block = windows.match(/Window\{\S+ u0 Your Bubble\}:[\s\S]*?(?=\n\s*Window #|\n\s*$)/)?.[0] ?? '';
 
 record('bubble window is hosted by the release build', /type=2038/.test(block), /type=\d+/.exec(block)?.[0] ?? 'no overlay window');
 record('bubble is drawn above another app', /isVisible=true/.test(block) && /shown=true/.test(block) && !focus.includes(PKG), `focus=${focus || 'unknown'}`);

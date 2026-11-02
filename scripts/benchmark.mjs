@@ -4,7 +4,7 @@
  *
  * Every task is a phrase a user can say, a set of acceptable execution-trace entries, and optional
  * real side effects (foreground app, media volume). The trace is read from the same history the
- * product shows the user, so a pass means FlowBubble recorded an outcome it is willing to stand
+ * product shows the user, so a pass means Your Bubble recorded an outcome it is willing to stand
  * behind and the device agrees.
  *
  * Usage:
@@ -19,10 +19,10 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 const ADB = process.env.ADB || 'C:/Users/Pranav/AppData/Local/Android/Sdk/platform-tools/adb.exe';
 const DEVICE = process.env.DEVICE || 'emulator-5554';
 const PKG = 'com.flowbubble.app';
-const LABEL = 'FlowBubble voice access';
+const LABEL = 'Your Bubble voice access';
 const DEBUG_OUT = 'app/build/outputs/apk/debug';
 
-/* The build names its artifact FlowBubble-<versionName>-debug.apk, so the harness follows the
+/* The build names its artifact YourBubble-<versionName>-debug.apk, so the harness follows the
  * version instead of pinning a filename that goes stale on every release. */
 function defaultApk() {
   if (process.env.APK) return process.env.APK;
@@ -132,7 +132,7 @@ function accessibilityBound() {
 
 /*
  * The check that matters is end to end: change what is foreground, ask the running service what it
- * now sees, and require a real package back. Everything FlowBubble verifies depends on these events,
+ * now sees, and require a real package back. Everything Your Bubble verifies depends on these events,
  * so a dead connection has to fail readiness rather than quietly fail every later task.
  *
  * The order is not cosmetic. A service that has just been rebound learns the foreground app from the
@@ -279,7 +279,7 @@ function awaitAccessibilityEvents(attempts = 3) {
 
 function grantPrerequisites() {
   // A fresh install has no runtime grants at all, and every communication task would otherwise fail
-  // for the same reason: FlowBubble correctly reports the missing permission instead of guessing.
+  // for the same reason: Your Bubble correctly reports the missing permission instead of guessing.
   for (const permission of ['RECORD_AUDIO', 'POST_NOTIFICATIONS', 'READ_CONTACTS']) {
     shell(`pm grant ${PKG} android.permission.${permission}`, { allowFail: true });
   }
@@ -771,7 +771,7 @@ const skippedByDesign = [
   'ask/translate screen: needs a configured AI endpoint; the gate is unit-tested',
   'screen capture / OCR: requires per-session MediaProjection consent by design',
   'Telegram/Signal/Instagram contact chats: no deterministic deep link, documented unsupported',
-  'placing calls and sending messages: FlowBubble stops at the dialer/draft by design'
+  'placing calls and sending messages: Your Bubble stops at the dialer/draft by design'
 ];
 
 function selectTasks() {
@@ -807,7 +807,7 @@ function installAndPrepare() {
   // The bubble is a user choice the app honours on launch, and OverlayService is not exported, so
   // only the app itself may start it.
   if (!enableBubble()) {
-    throw new Error('the bubble would not turn on; open Setup in FlowBubble and check the required permissions');
+    throw new Error('the bubble would not turn on; open Setup in Your Bubble and check the required permissions');
   }
   shell('input keyevent KEYCODE_HOME', { allowFail: true });
   sleep(900);
@@ -855,7 +855,7 @@ function main() {
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const lines = [
-    `# FlowBubble execution benchmark`,
+    `# Your Bubble execution benchmark`,
     ``,
     `- device: ${DEVICE}`,
     `- run: ${new Date().toString()}`,

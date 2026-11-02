@@ -911,7 +911,7 @@ class OverlayPanel(
 
     private fun copy(text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("FlowBubble", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("Your Bubble", text))
         Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 
