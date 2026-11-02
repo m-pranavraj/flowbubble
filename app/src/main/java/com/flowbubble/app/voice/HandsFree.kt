@@ -14,20 +14,29 @@ sealed class WakeResult {
  */
 object HandsFree {
     private val WAKE = Regex(
-        "\\b(?:hello|hey|hi|okay|ok)[\\s,.!?\\-]+(?:flow[\\s\\-]*)?(?:bubble|buble|bobble|babel)\\b",
+        "\\b(?:hello|hey|hi|okay|ok|helo|halo)[\\s,.!?\\-]+" +
+            "(?:flow[\\s\\-]*)?(?:bubble|buble|bobble|babel|babal|babbal)\\b",
         RegexOption.IGNORE_CASE
     )
 
     private const val EDGE_PUNCTUATION = " \t\n.,!?;:\u2014\u2013-\u2026'\u201C\u201D\""
 
     fun parse(text: String): WakeResult {
-        val matches = WAKE.findAll(text).toList()
+        // A Hindi recognizer returns Devanagari, which transliterates to "helo babal" - neither half of
+        // that is in WAKE as written, so the phrase is matched against the Latin form while the command
+        // is cut from the original words. CommandParser reads Devanagari verbs itself, so handing it a
+        // transliterated tail would throw away the understanding it already has.
+        val latin = if (Devanagari.contains(text)) HindiCommands.latinize(text) else text
+        val matches = WAKE.findAll(latin).toList()
         if (matches.isEmpty()) return WakeResult.None
-        val command = text.substring(matches.last().range.last + 1)
+        val throughWake = latin.substring(0, matches.last().range.last + 1)
+        val consumed = throughWake.split(Regex("\\s+")).count { it.isNotBlank() }
+        val command = text.trim().split(Regex("\\s+")).drop(consumed).joinToString(" ")
             .trim { it in EDGE_PUNCTUATION }
         if (command.isEmpty()) return WakeResult.WakeOnly
         // "hello bubble hello bubble" is the recognizer echoing the wake phrase, not a request.
-        if (WAKE.matches(command)) return WakeResult.WakeOnly
+        val latinCommand = if (latin === text) command else HindiCommands.latinize(command)
+        if (WAKE.matches(latinCommand)) return WakeResult.WakeOnly
         return WakeResult.Command(command)
     }
 }

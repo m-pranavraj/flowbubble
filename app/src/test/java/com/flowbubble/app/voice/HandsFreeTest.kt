@@ -28,6 +28,15 @@ class HandsFreeTest {
     }
 
     @Test
+    fun `a Devanagari transcript wakes and keeps its own words`() {
+        assertEquals(WakeResult.WakeOnly, HandsFree.parse("\u0939\u0947\u0932\u094B \u092C\u092C\u0932"))
+        assertEquals(
+            WakeResult.Command("\u0938\u094D\u0915\u094D\u0930\u0940\u0928 \u092A\u0922\u093C\u094B"),
+            HandsFree.parse("\u0939\u0947\u0932\u094B \u092C\u092C\u0932 \u0938\u094D\u0915\u094D\u0930\u0940\u0928 \u092A\u0922\u093C\u094B")
+        )
+    }
+
+    @Test
     fun `bubble inside another word is not a wake phrase`() {
         assertEquals(WakeResult.None, HandsFree.parse("open bubblegum"))
         assertEquals(WakeResult.None, HandsFree.parse("this is bubble wrap"))

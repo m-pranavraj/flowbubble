@@ -38,6 +38,7 @@ import com.flowbubble.app.agent.Gap
 import com.flowbubble.app.agent.Route
 import com.flowbubble.app.agent.SettingsTarget
 import com.flowbubble.app.capture.ScreenCapture
+import com.flowbubble.app.capture.ScreenSession
 import com.flowbubble.app.commands.CommandExecutor
 import com.flowbubble.app.core.DndRevert
 import com.flowbubble.app.core.HistoryStore
@@ -50,6 +51,7 @@ import com.flowbubble.app.overlay.OverlayPanel
 import com.flowbubble.app.overlay.OverlayUi
 import com.flowbubble.app.overlay.PanelAction
 import com.flowbubble.app.overlay.PanelContent
+import com.flowbubble.app.overlay.companion.CompanionMood
 import com.flowbubble.app.voice.AiRole
 import com.flowbubble.app.voice.Command
 import com.flowbubble.app.voice.CommandParser
@@ -88,6 +90,14 @@ class OverlayService : Service(), OverlayUi {
         private const val VOICE_RETRY_MS = 6_000L
         private const val LISTEN_WINDOW_MS = 20_000L
         private const val CONFIRM_WINDOW_MS = 12_000L
+
+        /**
+         * The overlay window owns the character's size: BubbleView measures at most as large as the
+         * window it is given, so changing this is the only way to change how big the companion is.
+         * Both the window and the drag clamp read it from here, because a mismatch lets the character
+         * be sized at 72 dp while the clamp still reserves 96.
+         */
+        private const val BUBBLE_SIZE_DP = 96f
         private const val WAKE_RETRY_BASE_MS = 600L
 
         fun start(context: Context) {
@@ -307,7 +317,7 @@ class OverlayService : Service(), OverlayUi {
     }
 
     private fun addBubble() {
-        val size = dp(72f)
+        val size = dp(BUBBLE_SIZE_DP)
         val (screenWidth, screenHeight) = screenSize()
         val savedX = Prefs.bubbleX(this)
         val savedY = Prefs.bubbleY(this)
@@ -372,7 +382,7 @@ class OverlayService : Service(), OverlayUi {
         }
     }
 
-    private fun clamp(x: Int, y: Int, size: Int = dp(72f)): Pair<Int, Int> {
+    private fun clamp(x: Int, y: Int, size: Int = dp(BUBBLE_SIZE_DP)): Pair<Int, Int> {
         val (width, height) = screenSize()
         return x.coerceIn(0, max(0, width - size)) to y.coerceIn(0, max(0, height - size))
     }
@@ -681,9 +691,13 @@ class OverlayService : Service(), OverlayUi {
         val once = {
             if (!resumed) {
                 resumed = true
+                bubble?.setSpeaking(false)
                 then()
             }
         }
+        // The character's mouth moves while the answer is being read out, and stops with it. Every
+        // spoken reply goes through here, so this is the only place that has to know about it.
+        bubble?.setSpeaking(true)
         engine.say(text, Prefs.language(this)) { handler.post(once) }
         // An engine that never reports completion must not freeze the loop.
         handler.postDelayed(once, 8000)
@@ -1270,6 +1284,9 @@ class OverlayService : Service(), OverlayUi {
     private fun resetBubble() {
         bubble?.setState(BubbleView.State.IDLE)
         bubble?.setAmplitude(0f)
+        // The only mood with a real signal to react to: while the screen is being watched the
+        // companion looks curious, and it relaxes as soon as watching stops.
+        bubble?.setMood(if (ScreenSession.isWatching()) CompanionMood.Curious else CompanionMood.Neutral)
         updateNotification(
             if (handsFree) "Hands-free is on. Say \u201CHello Bubble\u201D."
             else "Bubble is ready. Hold the mic to talk."
