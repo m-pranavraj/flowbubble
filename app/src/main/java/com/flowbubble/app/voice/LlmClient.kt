@@ -3,6 +3,7 @@ package com.flowbubble.app.voice
 import android.content.Context
 import com.flowbubble.app.BuildConfig
 import com.flowbubble.app.core.AiStore
+import com.flowbubble.app.core.LocalModelStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -11,17 +12,22 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * One OpenAI-compatible client for every provider. A profile decides the endpoint, the model and the
- * key; a role decides which profile answers. Providers that need no key (Ollama, LM Studio) are
- * reached over plain http on the user's own machine, everything else must be https.
+ * One seam for every AI job in the app. A profile decides *what kind* of model answers, and this
+ * object routes to it: a hosted OpenAI-compatible endpoint over the network, or a LiteRT-LM model
+ * file that runs inside this phone. Every call site — dictation, edit, summarize, screen answer,
+ * translate, planning — comes through here, so a job gains local support by changing a setting
+ * rather than changing code.
  */
 object LlmClient {
     data class Config(
         val baseUrl: String,
         val apiKey: String,
         val model: String,
-        val label: String = ""
-    )
+        val label: String = "",
+        val engine: AiEngineKind = AiEngineKind.Hosted
+    ) {
+        val isOnDevice: Boolean get() = engine == AiEngineKind.OnDevice
+    }
 
     private const val CLEAN_SYSTEM =
         "You clean up dictated text. Remove filler words and false starts, add sensible " +
@@ -50,25 +56,56 @@ object LlmClient {
     private const val CHECK_SYSTEM =
         "This is a connectivity check. Reply with exactly the word OK and nothing else."
 
-    fun settings(context: Context): AiSettings = AiStore.settings(context)
+    fun settings(context: Context): AiSettings {
+        LocalModelStore.attach(context)
+        return AiStore.settings(context)
+    }
 
     /** The profile assigned to this role, or an empty config that reports itself as unconfigured. */
     fun config(context: Context, role: AiRole): Config {
-        val resolved = AiConfig.resolve(AiStore.settings(context), role)
-            ?: return Config("", "", "", "")
-        return Config(resolved.profile.baseUrl, resolved.apiKey, resolved.profile.model, resolved.profile.label)
+        LocalModelStore.attach(context)
+        val resolved = AiConfig.resolve(
+            AiStore.settings(context), role, LocalModelStore.localModelReady()
+        ) ?: return Config("", "", "", "")
+        return Config(
+            baseUrl = resolved.profile.baseUrl,
+            apiKey = resolved.apiKey,
+            model = resolved.profile.model,
+            label = resolved.profile.label,
+            engine = resolved.profile.engine
+        )
     }
 
-    fun isConfigured(context: Context): Boolean = AiConfig.anyUsable(AiStore.settings(context))
+    fun isConfigured(context: Context): Boolean =
+        AiConfig.anyUsable(settings(context), LocalModelStore.localModelReady())
 
-    fun isConfigured(context: Context, role: AiRole): Boolean =
-        AiConfig.resolve(AiStore.settings(context), role) != null
+    fun isConfigured(context: Context, role: AiRole): Boolean {
+        LocalModelStore.attach(context)
+        return AiConfig.resolve(
+            AiStore.settings(context), role, LocalModelStore.localModelReady()
+        ) != null
+    }
 
-    /** The host named in a consent dialog, so the user sees where the text is going. */
+    /**
+     * Where the text is going, phrased to sit inside a consent sentence. For a local job this names
+     * the phone rather than a host, so the consent dialog cannot claim the text is being sent to
+     * somebody.
+     */
     fun endpointLabel(context: Context, role: AiRole): String =
-        AiConfig.displayEndpoint(AiStore.settings(context), role)
+        AiConfig.consentEndpoint(settings(context), role)
 
-    fun save(context: Context, settings: AiSettings) = AiStore.save(context, settings)
+    fun save(context: Context, settings: AiSettings) {
+        LocalModelStore.attach(context)
+        AiStore.save(context, settings)
+        // The resident model is only valid while its profile still points at the same file.
+        val stillLocal = settings.profiles.any { it.isOnDevice }
+        if (!stillLocal || LocalLlmEngine.loadedModelId()?.let { loaded ->
+                settings.profiles.none { it.isOnDevice && it.localModelId == loaded }
+            } == true
+        ) {
+            LocalLlmEngine.release("profile changed")
+        }
+    }
 
     fun keysAreEncrypted(context: Context): Boolean = AiStore.keysAreEncrypted(context)
 
@@ -105,10 +142,29 @@ object LlmClient {
         config: Config
     ): Result<String> = complete(config, systemPrompt, userPrompt)
 
-    /** A round trip that carries no user content, for the Test button in settings. */
+    /**
+     * The Test button in settings. Hosted it is one request that carries no user content; on-device
+     * it loads the model file and asks it the same question, which is the only honest way to prove
+     * a local model actually runs on this phone.
+     */
     suspend fun test(config: Config): Result<String> = complete(config, CHECK_SYSTEM, "ping")
 
+    /**
+     * The one place that decides between the two kinds of model. Everything above it is a wrapper
+     * around this, so a job that has local support today has it for every role tomorrow.
+     */
     private suspend fun complete(
+        config: Config,
+        systemPrompt: String,
+        userPrompt: String
+    ): Result<String> {
+        if (config.isOnDevice) {
+            return LocalLlmEngine.complete(systemPrompt, userPrompt, config.model.trim())
+        }
+        return hosted(config, systemPrompt, userPrompt)
+    }
+
+    private suspend fun hosted(
         config: Config,
         systemPrompt: String,
         userPrompt: String

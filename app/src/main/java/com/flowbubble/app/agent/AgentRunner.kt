@@ -16,11 +16,15 @@ import com.flowbubble.app.core.Prefs
 import com.flowbubble.app.overlay.OverlayUi
 import com.flowbubble.app.overlay.PanelAction
 import com.flowbubble.app.overlay.PanelContent
+import com.flowbubble.app.capture.ScreenSession
+import com.flowbubble.app.vision.PointResolution
 import com.flowbubble.app.vision.ScreenFusion
 import com.flowbubble.app.vision.ScreenModel
 import com.flowbubble.app.vision.ScreenModelFactory
 import com.flowbubble.app.vision.ScreenTarget
+import com.flowbubble.app.vision.TargetLocator
 import com.flowbubble.app.vision.TargetSource
+import com.flowbubble.app.vision.TextMatcher
 import com.flowbubble.app.voice.AiRole
 import com.flowbubble.app.voice.LlmClient
 import kotlinx.coroutines.CancellationException
@@ -52,6 +56,20 @@ private const val PULSE_POLL_MS = 50L
 
 /** Fallback re-read interval for screens that change without emitting a usable event. */
 private const val BLIND_REREAD_MS = 400L
+
+/**
+ * How long the reactive loop waits for the live session to publish the screen a step produced. The
+ * session publishes within a few hundred milliseconds when something moved, so this is a patience
+ * cap and not a sleep: a step that changed the screen returns as soon as the new revision lands.
+ */
+private const val REVISION_WAIT_MS = 1100L
+private const val FIRST_REVISION_WAIT_MS = 600L
+
+/**
+ * A configured model may pick the next step, but only a few times per run: every consult is a network
+ * round trip with screen text in it, and the deterministic rules are what keep a loop cheap and fast.
+ */
+private const val MAX_AI_CONSULTS = 4
 
 class AgentRunner(
     private val context: Context,
@@ -167,7 +185,7 @@ class AgentRunner(
                     return AgentOutcome.Failed("AI planning failed: ${error.message ?: "unknown error"}. Nothing was changed.")
                 }
         }
-        return runPlan(plan)
+        return runReactive(plan)
     }
 
     private suspend fun runPlan(plan: AgentPlan): AgentOutcome {
@@ -214,6 +232,325 @@ class AgentRunner(
             notes.joinToString("\n\n")
         }
         return AgentOutcome.Completed(summary, trace(OutcomeKind.COMPLETED, ""))
+    }
+
+    /**
+     * Watch the screen, decide one step, take it, then read the screen again - until the goal is
+     * visibly true, the user stops it, or the budget runs out.
+     *
+     * The planned steps are the opening moves, not the whole run: once they are spent the next action
+     * comes from [LocalPlanner.decide] against the current [ScreenObservation], so a scroll that
+     * landed somewhere unexpected changes what happens next instead of being followed blindly. An AI
+     * role that is configured may pick the step; when it is not, deterministic rules do, and the run
+     * still finishes. Every safety gate lives in [executeStep] and is reused unchanged, so a
+     * reactive tap goes through exactly the same confirmation and credential rules as a planned one.
+     */
+    private suspend fun runReactive(plan: AgentPlan): AgentOutcome {
+        val budget = ReactiveBudget()
+        val steps = ArrayList<TraceStep>()
+        val route = if (plan.source == PlanSource.AI) "AI-planned chain, then watched the screen" else "watched the screen"
+        val startedAt = System.currentTimeMillis()
+
+        fun trace(outcome: OutcomeKind, headline: String) = ExecutionTrace(
+            asked = plan.goal,
+            route = route,
+            steps = steps.toList(),
+            outcome = outcome,
+            headline = headline
+        )
+
+        var goal = LocalPlanner.reactiveGoal(plan.goal)
+        var nextStep = 0
+        var stepsUsed = 0
+        var tapsUsed = 0
+        var scrollsUsed = 0
+        var dismissUsed = 0
+        var backUsed = 0
+        var typedUsed = 0
+        var openedApp = false
+        var tapsVerified = false
+        var aiConsults = 0
+        var lastAction: AgentAction? = null
+        var sameScreenStreak = 0
+        var first: ScreenObservation? = null
+        var previous: ScreenObservation? = null
+        var baselineRevision = 0
+        var resolvedPointer: ResolvedPointer? = null
+        var pointerQuestion: String? = null
+        var pointerOptions: List<String> = emptyList()
+        var pointerNote = ""
+        var startedSessionHere = false
+
+        if (goal != null && !ScreenSession.isWatching()) {
+            // Eyes for the loop, without asking Android for anything new: a session started with a
+            // null context never requests a projection, it just watches whatever is already flowing.
+            ScreenSession.start(null, fromUser = false)
+            startedSessionHere = true
+        }
+        try {
+            while (true) {
+                if (stopRequested) return AgentOutcome.Cancelled
+                val service = FlowAccessibilityService.instance
+                    ?: return AgentOutcome.Failed(
+                        "Accessibility is off, so I can't see or act on the screen. " +
+                            "Enable FlowBubble voice access in Android settings.",
+                        trace(OutcomeKind.FAILED, "I couldn't see the screen.")
+                    )
+                val now = observe(service, if (first == null) FIRST_REVISION_WAIT_MS else REVISION_WAIT_MS)
+                    ?: return AgentOutcome.Failed(
+                        "I couldn't read the screen, so I stopped instead of acting blind.",
+                        trace(OutcomeKind.FAILED, "I couldn't read the screen.")
+                    )
+                if (first == null) {
+                    first = now
+                    baselineRevision = now.revision
+                    goal = goal?.withBaseline(now)
+                }
+                sameScreenStreak = if (previous != null && now.fingerprint == previous.fingerprint) {
+                    sameScreenStreak + 1
+                } else {
+                    0
+                }
+                val currentGoal = goal
+                val appeared = appearedSince(previous, baselineRevision)
+                if (currentGoal != null && currentGoal.kind == GoalKind.POINT && resolvedPointer == null) {
+                    val facts = resolvePointer(currentGoal.pointing, appeared)
+                    resolvedPointer = facts.resolved
+                    pointerQuestion = facts.question
+                    pointerOptions = facts.options
+                    pointerNote = facts.note
+                }
+                val ctx = LoopContext(
+                    goal = currentGoal ?: ReactiveGoal(plan.goal, GoalKind.GENERIC),
+                    now = now,
+                    before = previous,
+                    first = first,
+                    appeared = appeared,
+                    resolvedPointer = resolvedPointer,
+                    pointerQuestion = pointerQuestion,
+                    pointerOptions = pointerOptions,
+                    pointerNote = pointerNote,
+                    stepsUsed = stepsUsed,
+                    tapsUsed = tapsUsed,
+                    scrollsUsed = scrollsUsed,
+                    dismissUsed = dismissUsed,
+                    backUsed = backUsed,
+                    typedUsed = typedUsed,
+                    openedApp = openedApp,
+                    sameScreenStreak = sameScreenStreak,
+                    tapsVerified = tapsVerified,
+                    elapsedMs = System.currentTimeMillis() - startedAt,
+                    budget = budget,
+                    lastAction = lastAction
+                )
+                val decision: LoopDecision = if (nextStep < plan.steps.size) {
+                    val step = plan.steps[nextStep++]
+                    LoopDecision.Act(step.action, step.description)
+                } else if (plan.source == PlanSource.AI && aiConsults < MAX_AI_CONSULTS &&
+                    LlmClient.isConfigured(context, AiRole.Plan)
+                ) {
+                    // The user approved sending this screen to their model when this plan was made, so
+                    // the model may choose the next step. If it has nothing usable, the deterministic
+                    // rules take it from here; configuring a model can never be what breaks a run.
+                    aiConsults++
+                    runCatching {
+                        LlmPlanner.nextStep(
+                            goal = plan.goal,
+                            observation = now,
+                            tried = steps.map { it.label },
+                            config = LlmClient.config(context, AiRole.Plan)
+                        )
+                    }.getOrNull() ?: LocalPlanner.decide(ctx)
+                } else {
+                    LocalPlanner.decide(ctx)
+                }
+
+                when (decision) {
+                    is LoopDecision.Done -> {
+                        steps.add(
+                            TraceStep(
+                                label = "Checked the screen against what you asked for",
+                                detail = decision.evidence,
+                                evidence = decision.evidence
+                            )
+                        )
+                        val summary = (notes + decision.evidence).joinToString("\n\n")
+                        return AgentOutcome.Completed(summary, trace(OutcomeKind.COMPLETED, ""))
+                    }
+                    is LoopDecision.GiveUp -> {
+                        steps.add(
+                            TraceStep(
+                                label = "Stopped watching",
+                                detail = decision.reason,
+                                evidence = null
+                            )
+                        )
+                        val completed = steps.count { it.verified && !it.informational }
+                        return AgentOutcome.Failed(
+                            decision.reason + if (completed > 0) " ($completed step${if (completed == 1) "" else "s"} confirmed first.)" else "",
+                            trace(OutcomeKind.FAILED, "I stopped after $stepsUsed steps.")
+                        )
+                    }
+                    is LoopDecision.Ask -> {
+                        resolvedPointer = null
+                        pointerQuestion = null
+                        val choice = askChoice(
+                            title = decision.question,
+                            body = decision.body + " I won't tap anything until you pick.",
+                            options = decision.options
+                        )
+                        if (choice == null) return AgentOutcome.Cancelled
+                        val label = decision.options.getOrNull(choice).orEmpty()
+                        if (label.isBlank()) {
+                            pointerNote = "That pick had no readable label, so I stopped rather than tap blind."
+                            continue
+                        }
+                        resolvedPointer = ResolvedPointer(label = label, ordinal = null, evidence = "you picked it")
+                        continue
+                    }
+                    is LoopDecision.Act -> {
+                        val step = AgentStep(decision.action, decision.reason)
+                        lastAction = decision.action
+                        stepsUsed++
+                        if (stopRequested) return AgentOutcome.Cancelled
+                        showProgress(stepsUsed, budget.maxSteps, decision.reason)
+                        val outcome = try {
+                            executeStep(step)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Throwable) {
+                            StepOutcome(false, note = error.message ?: "That step failed.")
+                        }
+                        if (outcome.cancelled) return AgentOutcome.Cancelled
+                        steps.add(
+                            TraceStep(
+                                label = decision.reason,
+                                detail = if (outcome.note == decision.reason) "" else outcome.note,
+                                evidence = outcome.evidence,
+                                informational = decision.action is AgentAction.Wait
+                            )
+                        )
+                        if (outcome.note.isNotBlank() && outcome.note != decision.reason) notes.add(outcome.note)
+                        when (decision.action) {
+                            is AgentAction.TapTarget -> {
+                                tapsUsed++
+                                if (outcome.ok && outcome.evidence != null) {
+                                    tapsVerified = true
+                                    resolvedPointer = null
+                                    pointerNote = ""
+                                }
+                            }
+                            is AgentAction.LongPress -> tapsUsed++
+                            is AgentAction.Scroll -> scrollsUsed++
+                            is AgentAction.ScrollUntil -> scrollsUsed += decision.action.maxScrolls.coerceAtMost(8)
+                            is AgentAction.Swipe -> scrollsUsed++
+                            AgentAction.Dismiss -> dismissUsed++
+                            AgentAction.Back -> backUsed++
+                            is AgentAction.TypeText -> typedUsed++
+                            is AgentAction.OpenApp -> openedApp = true
+                            else -> Unit
+                        }
+                        previous = now
+                        if (!outcome.ok) {
+                            // A step that failed is information, not a dead end: the next decision is
+                            // made from the screen as it now is. The budgets bound how long that can go on.
+                            continue
+                        }
+                    }
+                }
+            }
+        } finally {
+            if (startedSessionHere) ScreenSession.releaseIfUnpinned(null)
+        }
+    }
+
+    /**
+     * What the screen looks like right now, preferring the live session: it is already re-reading on
+     * its own, and waiting for the next revision is exactly "see what the last action produced".
+     */
+    private suspend fun observe(service: FlowAccessibilityService, waitMs: Long): ScreenObservation? {
+        val fieldText = runCatching { service.currentFieldText().orEmpty() }.getOrNull().orEmpty()
+        if (ScreenSession.isWatching()) {
+            val minimum = ScreenSession.revision()
+            val moved = ScreenSession.awaitRevision(minimum, waitMs)
+            val snapshot = moved ?: ScreenSession.snapshot()
+            if (snapshot != null) return ScreenObservation.of(snapshot.model, snapshot.revision, fieldText)
+        }
+        val model = readModel(service, includePixels = false) ?: return null
+        return ScreenObservation.of(model, ScreenSession.revision(), fieldText)
+    }
+
+    /** Labels that were not there when the task started - what "that" can point at. */
+    private fun appearedSince(previous: ScreenObservation?, baselineRevision: Int): List<String> {
+        if (ScreenSession.isWatching() && baselineRevision > 0) {
+            val diff = ScreenSession.since(baselineRevision)
+            if (diff.appeared.isNotEmpty()) return diff.appeared
+        }
+        val before = previous?.labels?.map { TextMatcher.normalize(it) }?.toSet() ?: return emptyList()
+        return ScreenSession.snapshot()?.model?.targets
+            ?.map { TextMatcher.normalize(it.label) }
+            ?.filter { it.isNotBlank() && it !in before }
+            ?: previous?.labels.orEmpty().map { TextMatcher.normalize(it) }.filter { it !in before }
+    }
+
+    /**
+     * Resolves "the third one" / "that chat at the top" / "the blue button" against the live target
+     * list. An ambiguous reference becomes a question through the existing choice panel; it is never
+     * guessed, and a control with no readable label is refused rather than tapped blind.
+     */
+    private data class PointerFacts(
+        val resolved: ResolvedPointer? = null,
+        val question: String? = null,
+        val options: List<String> = emptyList(),
+        val note: String = ""
+    )
+
+    /**
+     * Resolves "the third one" / "that chat at the top" / "the blue button" against the live target
+     * list. An ambiguous reference becomes a question through the existing choice panel; it is never
+     * guessed, and a control with no readable label is refused rather than tapped blind.
+     */
+    private fun resolvePointer(phrase: String, appeared: List<String>): PointerFacts {
+        val appearedSet = appeared.toSet()
+        val resolution = ScreenSession.resolvePointing(phrase, appearedSet) ?: run {
+            val model = ScreenSession.currentModel() ?: return PointerFacts(
+                note = "I'm not watching the screen yet, so I can't tell which one you mean."
+            )
+            TargetLocator.resolve(
+                phrase = phrase,
+                targets = model.targets,
+                appeared = appearedSet,
+                hueOf = { box -> ScreenSession.hueAt(box) },
+                screenWidth = model.screenWidth,
+                screenHeight = model.screenHeight
+            )
+        }
+        return when (resolution) {
+            is PointResolution.Found -> when {
+                resolution.target.label.isBlank() -> PointerFacts(
+                    note = "I found the control you meant, but it has no readable name, so I stopped " +
+                        "instead of tapping blind coordinates."
+                )
+                SafetyPolicy.isCredentialLabel(resolution.target.label) -> PointerFacts(
+                    note = "That looks like a credential field, so I stopped."
+                )
+                else -> PointerFacts(
+                    resolved = ResolvedPointer(
+                        label = resolution.target.label,
+                        evidence = resolution.evidence,
+                        target = resolution.target
+                    )
+                )
+            }
+            is PointResolution.Ambiguous -> PointerFacts(
+                question = resolution.question,
+                note = resolution.reason,
+                options = resolution.candidates.map { candidate ->
+                    candidate.label.ifBlank { "the control ${candidate.box.centerY}px down the screen" }
+                }
+            )
+            is PointResolution.NotFound -> PointerFacts(note = resolution.reason)
+        }
     }
 
     private suspend fun executeStep(step: AgentStep): StepOutcome = when (val action = step.action) {

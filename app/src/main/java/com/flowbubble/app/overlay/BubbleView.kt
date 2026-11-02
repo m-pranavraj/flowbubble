@@ -3,19 +3,36 @@ package com.flowbubble.app.overlay
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.RadialGradient
-import android.graphics.RectF
-import android.graphics.Shader
+import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.animation.LinearInterpolator
-import com.flowbubble.app.R
+import com.flowbubble.app.overlay.companion.CompanionController
+import com.flowbubble.app.overlay.companion.CompanionMood
+import com.flowbubble.app.overlay.companion.CompanionRenderer
+import com.flowbubble.app.overlay.companion.CompanionState as CompanionPose
+import com.flowbubble.app.overlay.companion.CompanionTiming
 import kotlin.math.hypot
+import kotlin.math.min
 
+/**
+ * The system-overlay bubble. It used to be a dark disc with a microphone glyph; now it is a small
+ * creature that lives on top of every app and behaves like a companion: it breathes and blinks when
+ * left alone, leans in and pulses when you hold it, drifts its eyes and orbits a spark while it
+ * thinks, smiles when it lands the task and droops when it fails.
+ *
+ * Deliberate constraints baked into this file:
+ *  - the drawing is pure Canvas (no image assets, no animation libraries) because this thing has to
+ *    survive for hours inside a foreground service on a phone;
+ *  - nothing allocates per frame — see [CompanionRenderer];
+ *  - idle runs at roughly 8 fps and only full-frame rate is spent on the states a human is watching;
+ *  - every animation driver is torn down in [onDetachedFromWindow] and refuses to run while hidden.
+ *
+ * The gesture layer below is device-verified behaviour (hold after 140 ms, drag past touch slop,
+ * quick tap, clean ACTION_CANCEL unwind) and is kept exactly as it was.
+ */
 class BubbleView(context: Context) : View(context) {
 
     enum class State { IDLE, LISTENING, PROCESSING, READY, ERROR }
@@ -30,36 +47,23 @@ class BubbleView(context: Context) : View(context) {
     private val density = resources.displayMetrics.density
     private fun dp(value: Float) = value * density
 
-    private val accent = context.getColor(R.color.flow_accent)
-    private val readyColor = Color.parseColor("#34D399")
-    private val errorColor = Color.parseColor("#F87171")
-    private val bodyColor = Color.parseColor("#0F1720")
+    private val controller = CompanionController()
+    private val renderer = CompanionRenderer(density)
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
-    private val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = dp(2.4f)
-        strokeCap = Paint.Cap.ROUND
-    }
-    private val micFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-    private val micStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = dp(2f)
-        strokeCap = Paint.Cap.ROUND
-    }
-    private val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = dp(2.6f)
-        strokeCap = Paint.Cap.ROUND
-        strokeJoin = Paint.Join.ROUND
-    }
+    /**
+     * Expression layer, independent from [State]. Optional: the companion defaults to
+     * [CompanionMood.Neutral] and looks complete without anyone calling this.
+     */
+    val mood: CompanionMood get() = controller.mood
+
+    /** Growth stage 1..4 — a small blob at 1, halo and stronger aura at 4. Clamped, optional. */
+    val stage: Int get() = controller.stage
 
     private var state = State.IDLE
-    private var phase = 0f
-    private var amplitude = 0f
+    private var speaking = false
     private var animator: ValueAnimator? = null
+    private var ticking = false
 
     private var downRawX = 0f
     private var downRawY = 0f
@@ -76,169 +80,194 @@ class BubbleView(context: Context) : View(context) {
         }
     }
 
+    /** The slow heartbeat of the idle character. Re-posts itself with the delay the controller asks for. */
+    private val idleTicker = object : Runnable {
+        override fun run() {
+            ticking = false
+            if (!shouldAnimate()) return
+            ticking = true
+            invalidate()
+            postDelayed(this, controller.tickDelayMs(now()))
+        }
+    }
+
     init {
         isClickable = true
         isFocusable = false
-        contentDescription = idleDescription()
+        contentDescription = describe(State.IDLE)
     }
+
+    // ---------------------------------------------------------------- public surface
 
     fun setState(newState: State) {
         if (state == newState) return
         state = newState
-        if (newState != State.LISTENING) amplitude = 0f
+        controller.setState(newState.toPose(), now())
+        if (newState != State.LISTENING) controller.setAmplitude(0f, now())
+        contentDescription = describe(newState)
         updateAnimation()
-        contentDescription = when (newState) {
-            State.IDLE -> idleDescription()
-            State.LISTENING -> "FlowBubble is listening. Release to finish."
-            State.PROCESSING -> "FlowBubble is processing your request."
-            State.READY -> "FlowBubble finished the task."
-            State.ERROR -> "FlowBubble ran into a problem."
-        }
         invalidate()
     }
 
     fun setAmplitude(value: Float) {
-        amplitude = value.coerceIn(0f, 1f)
+        controller.setAmplitude(value, now())
         if (state == State.LISTENING) invalidate()
     }
 
-    private fun idleDescription() = "FlowBubble microphone. Hold to talk, tap for options."
-
-    private fun updateAnimation() {
-        val shouldAnimate = state == State.LISTENING || state == State.PROCESSING
-        if (shouldAnimate && animator == null) {
-            animator = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 1400
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = LinearInterpolator()
-                addUpdateListener {
-                    phase = it.animatedValue as Float
-                    invalidate()
-                }
-                start()
-            }
-        } else if (!shouldAnimate) {
-            animator?.cancel()
-            animator = null
-            phase = 0f
-        }
+    /** Optional. Sets the expression overlay; safe to never call. */
+    fun setMood(mood: CompanionMood = CompanionMood.Neutral) {
+        controller.setMood(mood)
+        invalidate()
     }
 
+    /** Optional. Sets the growth stage, clamped to 1..4; safe to never call. */
+    fun setStage(stage: Int = CompanionTiming.DefaultStage) {
+        controller.setStage(stage)
+        invalidate()
+    }
+
+    /**
+     * Optional. True while text-to-speech is playing: the mouth then tracks the reported amplitude
+     * instead of staying shut, and the character earns full frame rate.
+     */
+    fun setSpeaking(active: Boolean = true) {
+        if (speaking == active) return
+        speaking = active
+        controller.setSpeaking(active)
+        updateAnimation()
+        invalidate()
+    }
+
+    // ---------------------------------------------------------------- drawing
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val size = dp(72f).toInt()
-        setMeasuredDimension(size, size)
+        val wanted = dp(96f)
+        val specWidth = MeasureSpec.getSize(widthMeasureSpec)
+        val specHeight = MeasureSpec.getSize(heightMeasureSpec)
+        // The overlay window owns the size, so never measure larger than it asked for, and never
+        // larger than 96 dp — the service positions the window against the screen edges.
+        val cap = min(
+            if (specWidth > 0) specWidth.toFloat() else wanted,
+            if (specHeight > 0) specHeight.toFloat() else wanted
+        )
+        val side = min(wanted, cap).toInt().coerceAtLeast(dp(48f).toInt())
+        setMeasuredDimension(side, side)
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val cx = width / 2f
-        val cy = height / 2f
-        val bodyRadius = width / 2f - dp(9f)
-        val color = when (state) {
-            State.READY -> readyColor
-            State.ERROR -> errorColor
-            else -> accent
+        val half = min(width, height) / 2f
+        val bodyRadius = half - dp(8f)
+        if (bodyRadius <= 0f) return
+        val frame = controller.update(now())
+        renderer.draw(canvas, frame, width / 2f, height / 2f, bodyRadius)
+    }
+
+    private fun State.toPose(): CompanionPose = when (this) {
+        State.IDLE -> CompanionPose.Idle
+        State.LISTENING -> CompanionPose.Listening
+        State.PROCESSING -> CompanionPose.Thinking
+        State.READY -> CompanionPose.Happy
+        State.ERROR -> CompanionPose.Worried
+    }
+
+    private fun describe(which: State): CharSequence = when (which) {
+        State.IDLE -> "The bubble is resting. Hold to talk, tap for options."
+        State.LISTENING -> "The bubble is listening. Release to finish."
+        State.PROCESSING -> "The bubble is working on your request."
+        State.READY -> "The bubble finished the task."
+        State.ERROR -> "The bubble ran into a problem."
+    }
+
+    // ---------------------------------------------------------------- animation lifecycle
+
+    private fun now(): Long = SystemClock.uptimeMillis()
+
+    private fun shouldAnimate(): Boolean =
+        isAttachedToWindow && visibility == VISIBLE && windowVisibility == VISIBLE
+
+    private fun updateAnimation() {
+        if (!shouldAnimate()) {
+            stopFullRate()
+            stopIdleTicker()
+            return
         }
-
-        val glowStrength = when (state) {
-            State.LISTENING -> 0.42f + amplitude * 0.4f
-            State.PROCESSING -> 0.3f
-            State.READY -> 0.32f
-            State.ERROR -> 0.32f
-            State.IDLE -> 0.16f
+        if (controller.isFullRate(now())) {
+            stopIdleTicker()
+            startFullRate()
+        } else {
+            stopFullRate()
+            startIdleTicker()
         }
-        val pulse = if (state == State.LISTENING) (1f + (phase * 2f % 1f) * 0.22f) else 1f
-        val glowRadius = bodyRadius * 1.65f * pulse
-        glowPaint.shader = RadialGradient(
-            cx, cy, glowRadius,
-            intArrayOf(
-                Color.argb((glowStrength * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color)),
-                Color.TRANSPARENT
-            ),
-            floatArrayOf(0.45f, 1f),
-            Shader.TileMode.CLAMP
-        )
-        canvas.drawCircle(cx, cy, glowRadius, glowPaint)
+    }
 
-        bodyPaint.color = bodyColor
-        canvas.drawCircle(cx, cy, bodyRadius, bodyPaint)
-        bodyPaint.style = Paint.Style.STROKE
-        bodyPaint.strokeWidth = dp(1.2f)
-        bodyPaint.color = Color.argb(
-            if (state == State.LISTENING) 210 else 120,
-            Color.red(color), Color.green(color), Color.blue(color)
-        )
-        canvas.drawCircle(cx, cy, bodyRadius, bodyPaint)
-        bodyPaint.style = Paint.Style.FILL
+    /** Handed back to the slow heartbeat once a transient burst (the READY bounce) has settled. */
+    private val rateDownRunnable = Runnable { updateAnimation() }
 
-        when (state) {
-            State.IDLE -> {
-                drawMic(canvas, cx, cy, accent)
-            }
-            State.LISTENING -> {
-                drawPulseRing(canvas, cx, cy, bodyRadius, color)
-                drawMic(canvas, cx, cy, Color.WHITE)
-            }
-            State.PROCESSING -> {
-                val ringRadius = bodyRadius - dp(1f)
-                val start = phase * 360f
-                ringPaint.color = color
-                canvas.drawArc(
-                    RectF(cx - ringRadius, cy - ringRadius, cx + ringRadius, cy + ringRadius),
-                    start, 92f, false, ringPaint
-                )
-                ringPaint.color = Color.argb(80, Color.red(color), Color.green(color), Color.blue(color))
-                canvas.drawArc(
-                    RectF(cx - ringRadius, cy - ringRadius, cx + ringRadius, cy + ringRadius),
-                    start + 180f, 92f, false, ringPaint
-                )
-                drawMic(canvas, cx, cy, accent)
-            }
-            State.READY -> {
-                glyphPaint.color = readyColor
-                val path = android.graphics.Path().apply {
-                    moveTo(cx - dp(9f), cy)
-                    lineTo(cx - dp(2.5f), cy + dp(7f))
-                    lineTo(cx + dp(10f), cy - dp(7f))
+    private fun startFullRate() {
+        if (animator != null) return
+        // The animator is only a vsync metronome; the character reads wall-clock time itself, which
+        // also means no boxed animated value is allocated every frame. It is never cancelled from
+        // inside its own listener, so this field always reflects what is really running.
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = CompanionTiming.OrbitPeriodMs
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+            addUpdateListener {
+                if (!shouldAnimate()) return@addUpdateListener
+                if (controller.isFullRate(now())) {
+                    invalidate()
+                } else {
+                    // A short-lived reason for full rate ran out: give the idle ticker over, off the
+                    // animation callback, instead of spinning at 60 fps for nothing.
+                    postDelayed(rateDownRunnable, CompanionTiming.IdleTickMs)
                 }
-                canvas.drawPath(path, glyphPaint)
             }
-            State.ERROR -> {
-                glyphPaint.color = errorColor
-                canvas.drawLine(cx, cy - dp(10f), cx, cy + dp(3f), glyphPaint)
-                micFill.color = errorColor
-                canvas.drawCircle(cx, cy + dp(10f), dp(1.8f), micFill)
-            }
+            start()
         }
     }
 
-    private fun drawPulseRing(canvas: Canvas, cx: Float, cy: Float, radius: Float, color: Int) {
-        val expansion = (phase * 2f) % 1f
-        val ringRadius = radius + dp(2f) + expansion * dp(7f)
-        ringPaint.color = Color.argb(
-            ((1f - expansion) * 150).toInt(),
-            Color.red(color), Color.green(color), Color.blue(color)
-        )
-        ringPaint.strokeWidth = dp(2f)
-        canvas.drawCircle(cx, cy, ringRadius, ringPaint)
-        ringPaint.strokeWidth = dp(2.4f)
+    private fun stopFullRate() {
+        removeCallbacks(rateDownRunnable)
+        animator?.cancel()
+        animator = null
     }
 
-    private fun drawMic(canvas: Canvas, cx: Float, cy: Float, color: Int) {
-        micFill.color = color
-        val capsuleWidth = dp(10f)
-        val capsuleTop = cy - dp(15f)
-        val capsuleBottom = cy + dp(2f)
-        canvas.drawRoundRect(
-            RectF(cx - capsuleWidth / 2f, capsuleTop, cx + capsuleWidth / 2f, capsuleBottom),
-            capsuleWidth / 2f, capsuleWidth / 2f, micFill
-        )
-        micStroke.color = color
-        val cradle = RectF(cx - dp(9f), cy - dp(15f), cx + dp(9f), cy + dp(4f))
-        canvas.drawArc(cradle, 0f, 180f, false, micStroke)
-        canvas.drawLine(cx, cy + dp(4f), cx, cy + dp(9f), micStroke)
-        canvas.drawLine(cx - dp(6f), cy + dp(9f), cx + dp(6f), cy + dp(9f), micStroke)
+    private fun startIdleTicker() {
+        if (ticking) return
+        // Cancel first: a pending callback and a fresh one must never coexist.
+        removeCallbacks(idleTicker)
+        ticking = true
+        postDelayed(idleTicker, controller.tickDelayMs(now()))
     }
+
+    private fun stopIdleTicker() {
+        if (!ticking) return
+        ticking = false
+        removeCallbacks(idleTicker)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        controller.reset(now())
+        controller.setState(state.toPose(), now())
+        controller.setMood(mood)
+        controller.setStage(stage)
+        controller.setSpeaking(speaking)
+        updateAnimation()
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        updateAnimation()
+    }
+
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        updateAnimation()
+    }
+
+    // ---------------------------------------------------------------- gestures (unchanged)
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
@@ -260,6 +289,7 @@ class BubbleView(context: Context) : View(context) {
                     dragging = true
                     removeCallbacks(holdRunnable)
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    controller.poke(now(), CompanionMood.Curious)
                     onDragStart?.invoke()
                 }
                 if (dragging) {
@@ -282,6 +312,7 @@ class BubbleView(context: Context) : View(context) {
                 } else {
                     performClick()
                 }
+                updateAnimation()
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
@@ -293,6 +324,7 @@ class BubbleView(context: Context) : View(context) {
                     dragging = false
                     onDragEnd?.invoke()
                 }
+                updateAnimation()
                 return true
             }
         }
@@ -302,14 +334,16 @@ class BubbleView(context: Context) : View(context) {
     override fun performClick(): Boolean {
         super.performClick()
         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        controller.poke(now(), CompanionMood.Surprised)
+        invalidate()
         onTap?.invoke()
         return true
     }
 
     override fun onDetachedFromWindow() {
         removeCallbacks(holdRunnable)
-        animator?.cancel()
-        animator = null
+        stopIdleTicker()
+        stopFullRate()
         super.onDetachedFromWindow()
     }
 }

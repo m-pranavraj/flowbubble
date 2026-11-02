@@ -21,12 +21,29 @@ enum class AiRole(val id: String, val label: String) {
     }
 }
 
+/**
+ * Where a profile's model actually runs. [Hosted] is an OpenAI-compatible endpoint on somebody
+ * else's computer, reached over the network with a base URL and usually a key. [OnDevice] is a
+ * LiteRT-LM model file inside this app's private storage: no base URL, no key, and no network call,
+ * so the text being processed never leaves the phone.
+ */
+enum class AiEngineKind {
+    Hosted,
+    OnDevice;
+
+    companion object {
+        fun from(raw: String?): AiEngineKind =
+            if (raw?.trim()?.lowercase(Locale.US) == "on-device") OnDevice else Hosted
+    }
+}
+
 data class ProviderPreset(
     val id: String,
     val label: String,
     val baseUrl: String,
     val model: String,
-    val models: String
+    val models: String,
+    val engine: AiEngineKind = AiEngineKind.Hosted
 )
 
 /**
@@ -34,7 +51,12 @@ data class ProviderPreset(
  * `/chat/completions` appended, so the client itself stays provider-agnostic.
  */
 object AiProviders {
+
+    /** The pseudo-provider every on-device profile belongs to; it has no URL and no key. */
+    const val ON_DEVICE_ID = "on-device"
+
     val all: List<ProviderPreset> = listOf(
+
         ProviderPreset(
             "openai", "OpenAI", "https://api.openai.com/v1", "gpt-4o-mini",
             "gpt-4o-mini, gpt-4.1-mini, gpt-4o"
@@ -80,8 +102,26 @@ object AiProviders {
         ProviderPreset("custom", "Custom endpoint", "", "", "whatever your server expects")
     )
 
-    fun find(id: String?): ProviderPreset? =
-        all.firstOrNull { it.id == id?.trim()?.lowercase(Locale.US) }
+    fun find(id: String?): ProviderPreset? {
+        val key = id?.trim()?.lowercase(Locale.US) ?: return null
+        if (key == ON_DEVICE_ID) return onDevice
+        return all.firstOrNull { it.id == key }
+    }
+
+    /**
+     * The on-device engine as a picker entry. It is deliberately not in [all], because [all] is the
+     * list of endpoints that must each normalise to a working `/chat/completions` URL; this one has
+     * no URL at all. The settings screen lists it beside the hosted presets so local and hosted look
+     * like peers rather than like a hidden extra.
+     */
+    val onDevice = ProviderPreset(
+        id = ON_DEVICE_ID,
+        label = "On this phone",
+        baseUrl = "",
+        model = "",
+        models = "choose a downloaded model below",
+        engine = AiEngineKind.OnDevice
+    )
 
     /** The preset that owns this URL, so a pasted base URL keeps its label and model list. */
     fun matchBaseUrl(baseUrl: String): ProviderPreset? {
@@ -98,9 +138,16 @@ data class AiProfile(
     val label: String,
     val providerId: String,
     val baseUrl: String,
-    val model: String
+    val model: String,
+    val engine: AiEngineKind = AiEngineKind.Hosted
 ) {
     val preset: ProviderPreset? get() = AiProviders.find(providerId)
+
+    /** True when this profile is answered by a model file inside this app's own storage. */
+    val isOnDevice: Boolean get() = engine == AiEngineKind.OnDevice
+
+    /** For a local profile [model] is a [com.flowbubble.app.core.LocalModelSpec] id, not a server name. */
+    val localModelId: String get() = model.trim()
 }
 
 /**
@@ -114,9 +161,20 @@ data class AiSettings(
     val defaultProfileId: String = ""
 )
 
-data class ResolvedAi(val profile: AiProfile, val apiKey: String, val endpoint: String)
+data class ResolvedAi(val profile: AiProfile, val apiKey: String, val endpoint: String) {
+    val isOnDevice: Boolean get() = profile.isOnDevice
+}
 
 object AiConfig {
+
+    /** What a local profile shows wherever an endpoint would normally be named. */
+    const val LOCAL_ENDPOINT_TEXT = "Runs on this phone — nothing leaves the device"
+
+    /**
+     * The same promise phrased so it drops into the middle of a consent sentence
+     * ("this goes to your own phone — the text never leaves the device").
+     */
+    const val LOCAL_CONSENT_PHRASE = "your own phone — the text never leaves the device"
 
     fun normalizeBaseUrl(raw: String): String {
         val input = raw.trim()
@@ -143,7 +201,20 @@ object AiConfig {
     /** A model running on the user's own machine or LAN needs no credentials and may use plain http. */
     fun isLocal(rawBaseUrl: String): Boolean = isLocalHost(hostOf(rawBaseUrl))
 
-    fun validate(baseUrl: String, model: String, apiKey: String): List<String> {
+    /**
+     * An on-device profile has neither a URL nor a key, so only the model id can be wrong here.
+     * [localModelReady] is how the caller says whether that model file is actually on this phone;
+     * it is a parameter rather than a filesystem read so this decision can be tested on a JVM.
+     */
+    fun validate(
+        baseUrl: String,
+        model: String,
+        apiKey: String,
+        engine: AiEngineKind = AiEngineKind.Hosted
+    ): List<String> {
+        if (engine == AiEngineKind.OnDevice) {
+            return if (model.isBlank()) listOf("Pick a model to run on this phone.") else emptyList()
+        }
         val base = normalizeBaseUrl(baseUrl)
         if (base.isEmpty()) return listOf("Enter a base URL like https://api.groq.com/openai/v1")
         val errors = mutableListOf<String>()
@@ -159,15 +230,31 @@ object AiConfig {
         return errors
     }
 
-    fun isUsable(profile: AiProfile, apiKey: String): Boolean =
-        validate(profile.baseUrl, profile.model, apiKey).isEmpty()
+    fun validate(profile: AiProfile, apiKey: String): List<String> =
+        validate(profile.baseUrl, profile.model, apiKey, profile.engine)
+
+    fun isUsable(
+        profile: AiProfile,
+        apiKey: String,
+        localModelReady: (String) -> Boolean = { true }
+    ): Boolean {
+        if (validate(profile, apiKey).isNotEmpty()) return false
+        return !profile.isOnDevice || localModelReady(profile.localModelId)
+    }
+
+    fun isUsable(profile: AiProfile, apiKey: String): Boolean = isUsable(profile, apiKey) { true }
 
     /**
      * Which profile serves this role. A role pointed at a broken profile returns nothing rather
      * than quietly using another provider, because another provider means another company receiving
-     * the text.
+     * the text. A local model that is not downloaded counts as broken for the same reason: the job
+     * switches off instead of sending the text somewhere the user never chose.
      */
-    fun resolve(settings: AiSettings, role: AiRole): ResolvedAi? {
+    fun resolve(
+        settings: AiSettings,
+        role: AiRole,
+        localModelReady: (String) -> Boolean = { true }
+    ): ResolvedAi? {
         val assignedId = settings.roles[role.id]
         val id = if (assignedId != null && settings.profiles.any { it.id == assignedId }) {
             assignedId
@@ -175,18 +262,40 @@ object AiConfig {
             settings.defaultProfileId
         }
         val profile = settings.profiles.firstOrNull { it.id == id } ?: return null
-        val key = settings.keys[profile.id].orEmpty()
-        if (!isUsable(profile, key)) return null
+        // A local profile keeps no key: whatever was stored for it is ignored and never sent.
+        val key = if (profile.isOnDevice) "" else settings.keys[profile.id].orEmpty()
+        if (!isUsable(profile, key, localModelReady)) return null
         return ResolvedAi(profile, key, chatEndpoint(profile.baseUrl))
     }
 
-    fun anyUsable(settings: AiSettings): Boolean =
-        settings.profiles.any { isUsable(it, settings.keys[it.id].orEmpty()) }
+    fun resolve(settings: AiSettings, role: AiRole): ResolvedAi? =
+        resolve(settings, role) { true }
 
-    /** The host named in a consent dialog: where the text goes, never the key. */
+    fun anyUsable(settings: AiSettings, localModelReady: (String) -> Boolean = { true }): Boolean =
+        settings.profiles.any { isUsable(it, settings.keys[it.id].orEmpty(), localModelReady) }
+
+    fun anyUsable(settings: AiSettings): Boolean = anyUsable(settings) { true }
+
+    /**
+     * Where this role's text goes, in the user's own terms: a hostname for a hosted profile, and
+     * the flat statement that nothing leaves the phone for a local one.
+     */
     fun displayEndpoint(settings: AiSettings, role: AiRole): String {
         val resolved = resolve(settings, role) ?: return ""
-        return hostOf(resolved.profile.baseUrl)
+        return if (resolved.isOnDevice) {
+            LOCAL_ENDPOINT_TEXT
+        } else {
+            hostOf(resolved.profile.baseUrl)
+        }
+    }
+
+    /**
+     * The same answer shaped to sit inside a consent sentence. Held apart from [displayEndpoint]
+     * only because consent text reads as prose while settings reads as a label.
+     */
+    fun consentEndpoint(settings: AiSettings, role: AiRole): String {
+        val resolved = resolve(settings, role) ?: return ""
+        return if (resolved.isOnDevice) LOCAL_CONSENT_PHRASE else hostOf(resolved.profile.baseUrl)
     }
 
     fun maskKey(key: String): String {
@@ -197,6 +306,28 @@ object AiConfig {
             else -> "••••${trimmed.takeLast(4)}"
         }
     }
+
+    /** A local profile has no key to show, so it says so instead of rendering an empty mask. */
+    fun keyLine(profile: AiProfile, apiKey: String): String = when {
+        profile.isOnDevice -> "No key, no account, no network"
+        apiKey.isNotBlank() -> "Key ${maskKey(apiKey)}"
+        isLocal(profile.baseUrl) -> "No key needed on your own machine"
+        else -> "Needs an API key"
+    }
+
+    /** What a profile row shows where a hosted row shows a hostname. */
+    fun endpointLine(profile: AiProfile): String =
+        if (profile.isOnDevice) LOCAL_ENDPOINT_TEXT else hostOf(profile.baseUrl)
+
+    /** A profile for a model file on this phone: no base URL, no key, engine marked local. */
+    fun onDeviceProfile(id: String, label: String, modelId: String): AiProfile = AiProfile(
+        id = id,
+        label = label,
+        providerId = AiProviders.ON_DEVICE_ID,
+        baseUrl = "",
+        model = modelId,
+        engine = AiEngineKind.OnDevice
+    )
 
     /** The pre-multi-profile single endpoint, lifted into one default profile. */
     fun migrate(baseUrl: String, apiKey: String, model: String): AiSettings {

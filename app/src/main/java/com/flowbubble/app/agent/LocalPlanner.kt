@@ -1,5 +1,7 @@
 package com.flowbubble.app.agent
 
+import com.flowbubble.app.vision.TargetLocator
+import com.flowbubble.app.vision.TextMatcher
 import java.net.URI
 import java.net.URLEncoder
 import java.util.Locale
@@ -470,4 +472,268 @@ object LocalPlanner {
 
     private fun abbreviate(text: String, max: Int = 48): String =
         if (text.length <= max) text else text.take(max - 1) + "\u2026"
+
+    // ---- Reactive layer ---------------------------------------------------------------------
+    // The plan is only the opening move. From there the loop reads the screen again, decides the one
+    // next step from what it can actually see, takes it, and checks the screen once more. Every rule
+    // here is deterministic, so a task like "scroll down until you see X and open it" works with no
+    // AI key configured at all.
+
+    /**
+     * Turns the user's words into a condition the screen can be checked against, or null when the
+     * request has no observable finish line. A null goal means the loop runs the planned steps and
+     * stops with the ordinary verified-evidence verdict instead of pretending to know when it is done.
+     */
+    fun reactiveGoal(rawGoal: String): ReactiveGoal? {
+        var text = rawGoal.trim().replace(Regex("\\s+"), " ")
+        text = leadIn.replace(text, "").trim().trimEnd('.', '!', '?', ',')
+        if (text.isEmpty()) return null
+
+        scrollGoal(text)?.let { return it }
+        singleGoal(text)?.let { return it }
+
+        val clauses = text.split(chainSplitter).map { it.trim() }.filter { it.isNotEmpty() }
+        if (clauses.size < 2) return null
+        val last = clauses.last()
+        if (tapFollowUpRegex.matches(last)) {
+            // "scroll down to X and tap it" - the finish line is the tap, on the clause before it.
+            val previous = clauses[clauses.size - 2]
+            scrollGoal(previous)?.let { found ->
+                if (found.kind == GoalKind.FIND) {
+                    return found.copy(
+                        kind = GoalKind.TAP,
+                        doneWhen = listOf(GoalCondition.TapVerified, GoalCondition.ScreenChanged())
+                    )
+                }
+            }
+            singleGoal(previous)?.let { earlier ->
+                if (earlier.target.isNotBlank()) {
+                    return earlier.copy(
+                        kind = GoalKind.TAP,
+                        target = earlier.target,
+                        doneWhen = listOf(GoalCondition.TapVerified, GoalCondition.ScreenChanged())
+                    )
+                }
+            }
+            return null
+        }
+        return singleGoal(last)
+    }
+
+    private fun scrollGoal(text: String): ReactiveGoal? {
+        val match = scrollUntilRegex.matchEntire(text) ?: scrollFindByRegex.matchEntire(text) ?: return null
+        val label = match.groupValues[1].trim().trimEnd('.', '!', '?', ',')
+        if (label.isEmpty()) return null
+        val tapAfter = Regex("\\band\\s+(?:tap|click|press|open)\\b", RegexOption.IGNORE_CASE)
+            .containsMatchIn(text) || Regex("\\bthen\\s+(?:tap|click|open|select)\\b", RegexOption.IGNORE_CASE)
+                .containsMatchIn(text)
+        return ReactiveGoal(
+            raw = text,
+            kind = if (tapAfter) GoalKind.TAP else GoalKind.FIND,
+            target = label.take(120),
+            findFirst = true,
+            maxScrolls = 8,
+            doneWhen = if (tapAfter) {
+                listOf(GoalCondition.TapVerified, GoalCondition.ScreenChanged())
+            } else {
+                listOf(GoalCondition.LabelAppeared(label.take(120)))
+            }
+        )
+    }
+
+    private fun singleGoal(text: String): ReactiveGoal? {
+        if (dismissRegex.matches(text)) {
+            return ReactiveGoal(
+                raw = text,
+                kind = GoalKind.DISMISS,
+                doneWhen = listOf(GoalCondition.ScreenChanged())
+            )
+        }
+        if (text.equals("back", true) || text.equals("go back", true)) {
+            return ReactiveGoal(
+                raw = text,
+                kind = GoalKind.BACK,
+                doneWhen = listOf(GoalCondition.ScreenChanged())
+            )
+        }
+        typeRegex.matchEntire(text)?.let { match ->
+            val content = match.groupValues[1].trim()
+            if (content.isNotEmpty()) {
+                return ReactiveGoal(
+                    raw = text,
+                    kind = GoalKind.TYPE,
+                    text = content.take(400),
+                    doneWhen = listOf(GoalCondition.FieldContains(content.take(400)))
+                )
+            }
+        }
+        openAppRegex.matchEntire(text)?.let { match ->
+            val app = match.groupValues[1].trim()
+            if (app.isNotEmpty() && !looksLikePointing(app)) {
+                return ReactiveGoal(
+                    raw = text,
+                    kind = GoalKind.OPEN_APP,
+                    appName = app.take(60),
+                    target = app.take(60),
+                    doneWhen = listOf(GoalCondition.Foreground("", app.take(60)))
+                )
+            }
+        }
+        val tapped = tapRegex.matchEntire(text)?.groupValues?.getOrNull(1)?.trim() ?: return null
+        if (tapped.isEmpty()) return null
+        if (looksLikePointing(tapped)) {
+            return ReactiveGoal(
+                raw = text,
+                kind = GoalKind.POINT,
+                pointing = tapped.take(120),
+                target = tapped.take(120),
+                doneWhen = listOf(GoalCondition.TapVerified, GoalCondition.ScreenChanged())
+            )
+        }
+        return ReactiveGoal(
+            raw = text,
+            kind = GoalKind.TAP,
+            target = tapped.take(120),
+            maxScrolls = 2,
+            doneWhen = listOf(GoalCondition.TapVerified, GoalCondition.ScreenChanged())
+        )
+    }
+
+    /**
+     * True when the phrase points instead of naming: an order, a place on the screen, a colour, or a
+     * bare "that". Those only make sense against the live target list, so they go to the locator
+     * rather than to label matching.
+     */
+    private fun looksLikePointing(phrase: String): Boolean {
+        val normalized = TextMatcher.normalize(phrase)
+        if (normalized.isEmpty()) return false
+        if (normalized.split(' ').any { it in DEICTIC }) return true
+        val pointer = TargetLocator.parse(phrase)
+        return pointer.ordinal != null || pointer.band != TargetLocator.Band.NONE || pointer.hue != null
+    }
+
+    private val DEICTIC = setOf("that", "this", "it", "there", "here", "one")
+
+    /**
+     * The next step, from the goal and the screen as it is now. Nothing here looks at a plan position:
+     * the loop is told what is true on screen and answers with one action, a question, or a reason.
+     */
+    fun decide(ctx: LoopContext): LoopDecision {
+        val goal = ctx.goal
+        val now = ctx.now
+
+        if (goal.satisfied(now, ctx.before, ctx.tapsVerified)) {
+            return LoopDecision.Done(
+                "${goal.evidence()} - seen on screen in ${now.packageName} at revision ${now.revision}."
+            )
+        }
+        // Safety first, and unchanged by the new loop: never read or tap around a password field.
+        if (now.passwordFocused) {
+            return LoopDecision.GiveUp(
+                "A password field is focused, so I won't tap or read around it. Finish this part yourself."
+            )
+        }
+        ctx.budget.stopReason(ctx)?.let { return LoopDecision.GiveUp(it) }
+
+        when (goal.kind) {
+            GoalKind.POINT -> {
+                val pointer = ctx.resolvedPointer
+                if (pointer == null) {
+                    if (ctx.pointerQuestion != null && ctx.pointerOptions.size >= 2) {
+                        return LoopDecision.Ask(
+                            question = ctx.pointerQuestion,
+                            body = ctx.pointerNote.ifBlank { "I can see more than one match for \u201C${goal.pointing}\u201D." },
+                            options = ctx.pointerOptions
+                        )
+                    }
+                    if (ctx.pointerNote.isNotBlank()) return LoopDecision.GiveUp(ctx.pointerNote)
+                }
+                if (pointer != null) {
+                    if (ctx.tapsUsed > 0) {
+                        return LoopDecision.GiveUp(
+                            "I tapped ${describeTarget(pointer)} and the screen didn't give me what you asked for."
+                        )
+                    }
+                    val risk = SafetyPolicy.assessTap(pointer.label)
+                    if (risk.level == RiskLevel.BLOCKED) return LoopDecision.GiveUp(risk.reason)
+                    return LoopDecision.Act(
+                        AgentAction.TapTarget(pointer.label, pointer.ordinal),
+                        "tap ${describeTarget(pointer)} (${pointer.evidence})"
+                    )
+                }
+            }
+
+            GoalKind.FIND, GoalKind.TAP -> {
+                val visible = now.shows(goal.target)
+                if (!visible) {
+                    return LoopDecision.Act(
+                        AgentAction.Scroll(forward = true, times = 1),
+                        "scroll down to look for \u201C${abbreviate(goal.target)}\u201D"
+                    )
+                }
+                if (ctx.tapsUsed > 0) {
+                    return LoopDecision.GiveUp(
+                        "\u201C${abbreviate(goal.target)}\u201D is on screen and I tapped it, but the screen " +
+                            "never became what you asked for."
+                    )
+                }
+                if (goal.kind == GoalKind.FIND) {
+                    // The finish line for FIND is visibility, so reaching here means it moved away.
+                    return LoopDecision.GiveUp("I lost sight of \u201C${abbreviate(goal.target)}\u201D again.")
+                }
+                val risk = SafetyPolicy.assessTap(goal.target)
+                if (risk.level == RiskLevel.BLOCKED) return LoopDecision.GiveUp(risk.reason)
+                return LoopDecision.Act(
+                    AgentAction.TapTarget(goal.target, ordinalOf(goal.target)),
+                    "tap \u201C${abbreviate(goal.target)}\u201D"
+                )
+            }
+
+            GoalKind.DISMISS -> {
+                if (ctx.dismissUsed > 0) {
+                    return LoopDecision.GiveUp(
+                        "Nothing on this screen looks closeable, so I stopped instead of tapping around it."
+                    )
+                }
+                return LoopDecision.Act(AgentAction.Dismiss, "close whatever is on top")
+            }
+
+            GoalKind.BACK -> {
+                if (ctx.backUsed > 0) {
+                    return LoopDecision.GiveUp("I went back, and the screen didn't change the way you asked.")
+                }
+                return LoopDecision.Act(AgentAction.Back, "go back one screen")
+            }
+
+            GoalKind.TYPE -> {
+                if (ctx.typedUsed > 0) {
+                    return LoopDecision.GiveUp(
+                        "I typed it, but the field never showed \u201C${abbreviate(goal.text)}\u201D."
+                    )
+                }
+                return LoopDecision.Act(
+                    AgentAction.TypeText(goal.text, pressEnter = false),
+                    "type \u201C${abbreviate(goal.text)}\u201D into the field"
+                )
+            }
+
+            GoalKind.OPEN_APP -> {
+                if (ctx.openedApp) {
+                    return LoopDecision.GiveUp(
+                        "Android never showed ${goal.appName} in the foreground, so I stopped."
+                    )
+                }
+                return LoopDecision.Act(AgentAction.OpenApp(goal.appName), "open ${goal.appName}")
+            }
+
+            GoalKind.GENERIC -> Unit
+        }
+        return LoopDecision.GiveUp(
+            "I've done the steps I could plan for \u201C${abbreviate(goal.raw)}\u201D, and I can't see a " +
+                "way to check the rest on this screen."
+        )
+    }
+
+    private fun describeTarget(pointer: ResolvedPointer): String =
+        if (pointer.label.isNotBlank()) "\u201C${abbreviate(pointer.label)}\u201D" else "the control you pointed at"
 }

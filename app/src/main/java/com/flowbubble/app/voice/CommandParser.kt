@@ -3,6 +3,7 @@ package com.flowbubble.app.voice
 import com.flowbubble.app.agent.ActionParsing
 import com.flowbubble.app.agent.LocalPlanner
 import com.flowbubble.app.commands.ChatApp
+import com.flowbubble.app.vision.TargetLocator
 
 enum class SearchScope { AUTO, WEB, CURRENT }
 
@@ -65,6 +66,33 @@ sealed interface Command {
     data class ComposeEmail(val to: String, val subject: String) : Command
     data class NewEvent(val title: String) : Command
     data object ScreenActions : Command
+
+    /**
+     * "keep watching this screen" / "stop watching" / "watch until it's done".
+     *
+     * [untilDone] asks for the watch to end with the task instead of staying on, which is the
+     * difference between eyes for one job and eyes until the user says otherwise.
+     */
+    data class Watch(val enabled: Boolean, val untilDone: Boolean = false) : Command
+
+    /**
+     * A spatial or ordinal reference - "the third one", "that chat at the top", "the blue button",
+     * "click that" - resolved against the ordered targets on the live screen rather than a label.
+     */
+    data class Point(val phrase: String) : Command
+
+    /**
+     * The reference matched more than one thing, so the honest answer is a question. Picking a choice
+     * re-runs [template] with the choice substituted for %s, so a clarification lands back in the
+     * normal grammar instead of a special path. Everything that is not routed here keeps behaving
+     * exactly as it did before.
+     */
+    data class Clarify(
+        val question: String,
+        val body: String,
+        val choices: List<String>,
+        val template: String = "tap %s"
+    ) : Command
 }
 
 object CommandParser {
@@ -307,6 +335,35 @@ object CommandParser {
         RegexOption.IGNORE_CASE
     )
     private val chainRegex = Regex("\\s+(?:and\\s+)?then\\s+", RegexOption.IGNORE_CASE)
+
+    /** "keep watching this screen", "watch until it's done", "monitor the screen from now on". */
+    private val watchStartRegex = Regex(
+        "^(?:keep\\s+(?:on\\s+)?(?:watching|monitoring|looking\\s+at)|start\\s+watching|begin\\s+watching|" +
+            "continue\\s+(?:to\\s+)?watch|watch|monitor|keep\\s+your\\s+eyes\\s+on|eyes\\s+on)" +
+            "(?:\\s+(?:this|the|my)\\s+(?:screen|display|page|app))?" +
+            "(?:\\s+(?:always|constantly|nonstop|from\\s+now\\s+on|continuously))?" +
+            "(?:\\s*(?:,|and)?\\s*(?:until|till)(?:\\s+(?:it|the\\s+task|this|the\\s+screen))?(?:'s)?" +
+            "\\s+(?:is\\s+)?(?:done|finished|complete|completes))?$",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** "stop watching", "don't watch my screen anymore", "eyes off", "release the screen". */
+    private val watchStopRegex = Regex(
+        "^(?:(?:stop|cancel|quit|end|pause|turn\\s+off|release)\\s+(?:the\\s+|my\\s+|this\\s+)?" +
+            "(?:watching|monitoring|live\\s+watch|screen\\s+watch|watch(?:ing)\\s+(?:of\\s+)?the\\s+screen|screen)" +
+            "|(?:don't|do\\s+not|dont)\\s+watch(?:\\s+(?:the|my|this)\\s+(?:screen|app|page))?" +
+            "|(?:watch\\s+(?:the|my|this)\\s+(?:screen|app|page)\\s+)?no\\s+longer" +
+            "|eyes\\s+off(?:\\s+(?:the|my)\\s+screen)?" +
+            "|stop\\s+(?:looking|watching)\\s*(?:me)?(?:\\s+now)?" +
+            "|that(?:'s)?\\s+enough(?:\\s+watching)?|stop\\s+screen\\s+access)$",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** A pointing phrase may carry its own verb or stand alone; both resolve against live targets. */
+    private val pointVerbRegex = Regex(
+        "^(?:tap|click|press|select|choose|open|hit)\\s+(?:on\\s+)?(?:the\\s+)?(.+)$",
+        RegexOption.IGNORE_CASE
+    )
     private val actionStartRegex = Regex(
         "^(?:open|launch|start|go to|visit|search|find|look|tap|click|press|type|scroll|swipe|" +
             "read|summarize|summarise|translate|ask|take|capture)\\b",
@@ -380,6 +437,15 @@ object CommandParser {
         val lower = text.lowercase()
         if (lower in setOf("settings", "open settings", "system settings")) return Command.OpenSettings
         if (readRegex.matches(text)) return Command.ReadScreen
+
+        // Watching is a session the user opens and closes by word, and it has to be read before the
+        // tap grammar: "stop watching" must not become a request to tap something called "watching".
+        if (watchStartRegex.matches(text)) {
+            val untilDone = Regex("\\b(?:until|till)\\b[^.!?]*\\b(?:done|finished|complete)\\b", RegexOption.IGNORE_CASE)
+                .containsMatchIn(text)
+            return Command.Watch(enabled = true, untilDone = untilDone)
+        }
+        if (watchStopRegex.matches(text)) return Command.Watch(enabled = false)
         scrollRegex.matchEntire(text)?.let {
             val times = when (it.groupValues[2].lowercase()) {
                 "twice", "two times", "2 times" -> 2
@@ -612,6 +678,12 @@ object CommandParser {
 
         if (LocalPlanner.isControlPhrase(text)) return Command.AgentTask(text)
 
+        pointVerbRegex.matchEntire(text)?.let { match ->
+            val phrase = match.groupValues[1].trim().trimEnd('.', '!', '?', ',')
+            if (phrase.isNotBlank() && isPointingPhrase(phrase)) return Command.Point(phrase)
+        }
+        barePointing(text)?.let { return Command.Point(it) }
+
         tapRegex.matchEntire(text)?.let { match ->
             val target = match.groupValues[1].trim()
             val ordinal = ordinalRegex.matchEntire(target)?.let { ordinalIndex(it.groupValues[1]) }
@@ -694,6 +766,66 @@ object CommandParser {
         "fourteen" to 14, "fifteen" to 15, "sixteen" to 16, "seventeen" to 17,
         "eighteen" to 18, "nineteen" to 19, "twenty" to 20, "thirty" to 30,
         "forty" to 40, "fifty" to 50, "sixty" to 60, "ninety" to 90
+    )
+
+    /**
+     * True when the phrase points at something instead of naming it: an order, a place on the screen,
+     * a colour, or nothing but a kind of row ("that chat", "the blue button"). Those only make sense
+     * against the live, ordered target list, so they go to [Command.Point] rather than to a label tap.
+     */
+    private fun isPointingPhrase(phrase: String): Boolean {
+        val pointer = TargetLocator.parse(phrase)
+        if (pointer.hue != null || pointer.band != TargetLocator.Band.NONE) return true
+        if (pointer.ordinal != null) return false
+        // TargetLocator drops the pronouns into [Pointer.text], so the deictic has to be read out of
+        // what the user actually said: "that chat" points, "chat" on its own names a label to tap.
+        val spoken = phrase.lowercase().split(Regex("[^a-z0-9']+")).map { it.trimEnd('.', ',', '!', '?') }
+            .filter { it.isNotBlank() }
+        return spoken.any { it in DEICTIC_WORDS } &&
+            spoken.all { it in GENERIC_REFERENCE_WORDS || it in DEICTIC_WORDS }
+    }
+
+    /**
+     * A reference with no verb at all: "the third one", "that chat at the top". Only accepted when
+     * nothing is left over after the pointing words are removed, so a real sentence that happens to
+     * start with "the" stays dictation instead of turning into a tap.
+     */
+    private fun barePointing(raw: String): String? {
+        val words = raw.lowercase().split(' ').filter { it.isNotBlank() }
+        if (words.isEmpty() || words.size > 5) return null
+        val first = words.first().trimEnd('.', ',', '!', '?')
+        if (first !in BARE_POINTERS) return null
+        val phrase = raw.trim().trimEnd('.', '!', '?', ',').removePrefix("the ").trim()
+        val pointer = TargetLocator.parse(phrase)
+        if (pointer.ordinal == null && pointer.hue == null && pointer.band == TargetLocator.Band.NONE) {
+            val leftover = pointer.text.split(' ').filter { it.isNotBlank() && it !in GENERIC_REFERENCE_WORDS }
+            if (leftover.isNotEmpty()) return null
+        }
+        return phrase.ifBlank { null }
+    }
+
+    private val BARE_POINTERS = setOf(
+        "the", "that", "this", "it", "one", "first", "1st", "second", "2nd", "third", "3rd",
+        "fourth", "4th", "fifth", "5th", "sixth", "seventh", "eighth", "ninth", "tenth",
+        "blue", "green", "red", "yellow", "black", "white", "grey", "gray", "orange", "purple",
+        "pink", "brown", "top", "bottom", "middle", "left", "right"
+    )
+
+    /**
+     * Words that refer without naming: a pronoun or a spot. An order ("second") or a bare kind
+     * ("button") is deliberately not here, because both already resolve against the labelled
+     * target list through [Command.Tap] — the path every release since 1.0.0 has been device
+     * verified against. Taking those phrases over would trade proven behaviour for new.
+     */
+    private val DEICTIC_WORDS = setOf("that", "this", "it", "these", "those", "one", "here", "there")
+
+    /** Words that name a kind of thing on screen rather than the thing itself. */
+    private val GENERIC_REFERENCE_WORDS = setOf(
+        "that", "this", "it", "one", "thing", "chat", "chats", "conversation", "conversations",
+        "message", "messages", "button", "buttons", "row", "rows", "option", "options",
+        "result", "results", "item", "items", "contact", "contacts", "file", "files",
+        "photo", "photos", "picture", "pictures", "link", "links", "card", "cards",
+        "entry", "entries", "there", "here"
     )
 
     private fun ordinalIndex(word: String): Int? = when (word.lowercase()) {

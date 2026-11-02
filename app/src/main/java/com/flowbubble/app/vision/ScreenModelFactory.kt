@@ -5,11 +5,7 @@ import com.flowbubble.app.capture.ScreenCapture
 
 object ScreenModelFactory {
     suspend fun build(service: FlowAccessibilityService, includePixels: Boolean): ScreenModel {
-        val (screenWidth, screenHeight) = service.screenSize()
-        val nodes = service.visibleNodes()
-        val packageName = service.currentPackage() ?: "unknown"
-        val passwordFocused = service.isPasswordFocused()
-
+        val tree = readTree(service)
         var ocrUsed = false
         var ocrError: String? = null
         var captureError: String? = null
@@ -18,7 +14,7 @@ object ScreenModelFactory {
 
         if (includePixels) {
             when {
-                passwordFocused -> {
+                tree.passwordFocused -> {
                     captureError = "A password field is focused, so screen capture was skipped."
                     secureLikely = true
                 }
@@ -50,18 +46,54 @@ object ScreenModelFactory {
             }
         }
 
-        return ScreenModel(
-            packageName = packageName,
-            capturedAt = System.currentTimeMillis(),
+        return assemble(tree, ocr, ocrUsed, secureLikely, captureError, ocrError)
+    }
+
+    /**
+     * The accessibility half of a model, on its own, so a live session can diff the tree before it
+     * spends anything on pixels.
+     */
+    suspend fun readTree(service: FlowAccessibilityService): TreeRead {
+        val (screenWidth, screenHeight) = service.screenSize()
+        return TreeRead(
+            packageName = service.currentPackage() ?: "unknown",
             screenWidth = screenWidth,
             screenHeight = screenHeight,
-            nodes = nodes,
-            ocr = ocr,
-            ocrUsed = ocrUsed,
-            secureLikely = secureLikely,
-            passwordFocused = passwordFocused,
-            captureError = captureError,
-            ocrError = ocrError
+            nodes = service.visibleNodes(),
+            passwordFocused = service.isPasswordFocused()
         )
+    }
+
+    fun assemble(
+        tree: TreeRead,
+        ocr: List<OcrLine>,
+        ocrUsed: Boolean,
+        secureLikely: Boolean,
+        captureError: String? = null,
+        ocrError: String? = null
+    ): ScreenModel = ScreenModel(
+        packageName = tree.packageName,
+        capturedAt = System.currentTimeMillis(),
+        screenWidth = tree.screenWidth,
+        screenHeight = tree.screenHeight,
+        nodes = tree.nodes,
+        ocr = ocr,
+        ocrUsed = ocrUsed,
+        secureLikely = secureLikely,
+        passwordFocused = tree.passwordFocused,
+        captureError = captureError,
+        ocrError = ocrError
+    )
+
+    /** What the accessibility tree alone can say about the screen right now. */
+    data class TreeRead(
+        val packageName: String,
+        val screenWidth: Int,
+        val screenHeight: Int,
+        val nodes: List<ScreenNode>,
+        val passwordFocused: Boolean
+    ) {
+        /** A cheap fingerprint of the tree, used to decide whether anything is worth re-reading. */
+        fun textHash(): Int = ScreenFusion.treeHash(nodes)
     }
 }

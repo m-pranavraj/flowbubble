@@ -95,5 +95,12 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.mlkit:genai-speech-recognition:1.0.0-alpha2")
 
+    // On-device LLM. Google's LiteRT-LM Android SDK, from Google Maven (already in
+    // settings.gradle.kts via google()). Pinned, not latest.release, so a build stays reproducible.
+    // Its POM drags in kotlinx-coroutines-android 1.9.0, the same version this app already uses, and
+    // the AAR's minSdk is 24, below this app's 26. The CPU backend is the one used in code: it needs
+    // no <uses-native-library> entries in the manifest, which GPU and NPU both do.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.16.1")
+
     testImplementation("junit:junit:4.13.2")
 }

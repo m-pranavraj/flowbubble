@@ -115,8 +115,14 @@ object CapabilityRouter {
         // Everything that touches another app's screen.
         is Command.Tap, is Command.Scroll, Command.Back, Command.Home, Command.Recents,
         Command.ReadScreen, Command.ScreenActions, Command.Screenshot, is Command.TypeText,
-        is Command.AgentTask ->
+        is Command.AgentTask, is Command.Point ->
             needsScreen(labelFor(command), context)
+
+        // Watching is the same access the screen reader already uses, and needs no AI either way.
+        is Command.Watch -> needsScreen("watch_screen", context)
+
+        // A clarification asks the user, which only needs the overlay that is already running.
+        is Command.Clarify -> Route.Ready("clarify", "choice panel")
     }
 
     private fun searchCapability(command: Command.Search): String =
@@ -174,6 +180,9 @@ object CapabilityRouter {
 
     private fun labelFor(command: Command): String = when (command) {
         is Command.Tap -> "tap"
+        is Command.Point -> "point"
+        is Command.Watch -> "watch_screen"
+        is Command.Clarify -> "clarify"
         is Command.Scroll -> "scroll"
         Command.Back -> "back"
         Command.Home -> "home"

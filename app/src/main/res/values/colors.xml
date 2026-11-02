@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="flow_background">#050308</color>
-    <color name="flow_accent">#B9A7FF</color>
+    <color name="flow_accent">#C9B8FF</color>
     <color name="flow_crimson">#FF2D55</color>
     <color name="ic_launcher_background">#050308</color>
 </resources>

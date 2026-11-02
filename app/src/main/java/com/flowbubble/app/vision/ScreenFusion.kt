@@ -152,6 +152,18 @@ object ScreenFusion {
         return text.hashCode()
     }
 
+    /**
+     * Fingerprint of the accessibility tree alone. A live session reads this every frame because it
+     * costs a string join, while the fused [textHash] would drag OCR results into every comparison.
+     */
+    fun treeHash(nodes: List<ScreenNode>): Int {
+        val text = nodes.asSequence()
+            .filter { !it.password && it.box.isValid }
+            .sortedWith(compareBy({ it.box.top }, { it.box.left }))
+            .joinToString("|") { "${it.label.trim().lowercase(Locale.ROOT)}@${it.box.top},${it.box.left}" }
+        return text.hashCode()
+    }
+
     private fun addTarget(out: MutableList<ScreenTarget>, candidate: ScreenTarget) {
         if (out.size >= MAX_TARGETS) return
         val duplicate = out.any { existing ->

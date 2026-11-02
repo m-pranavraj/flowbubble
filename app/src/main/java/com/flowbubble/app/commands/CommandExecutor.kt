@@ -21,10 +21,12 @@ import com.flowbubble.app.agent.AgentAction
 import com.flowbubble.app.agent.AgentPlan
 import com.flowbubble.app.agent.AgentRunner
 import com.flowbubble.app.agent.AgentStep
+import com.flowbubble.app.agent.OutcomeKind
 import com.flowbubble.app.agent.PlanSource
 import com.flowbubble.app.agent.RiskLevel
 import com.flowbubble.app.agent.SafetyPolicy
 import com.flowbubble.app.capture.ScreenCapture
+import com.flowbubble.app.capture.ScreenSession
 import com.flowbubble.app.core.DndRevert
 import com.flowbubble.app.core.HistoryStore
 import com.flowbubble.app.core.LastActionMemory
@@ -40,10 +42,13 @@ import com.flowbubble.app.overlay.PanelAction
 import com.flowbubble.app.overlay.PanelContent
 import com.flowbubble.app.vision.ActionEntity
 import com.flowbubble.app.vision.ActionEntityKind
+import com.flowbubble.app.vision.PointResolution
 import com.flowbubble.app.vision.ScreenFusion
 import com.flowbubble.app.vision.ScreenModel
 import com.flowbubble.app.vision.ScreenModelFactory
 import com.flowbubble.app.vision.SmartActions
+import com.flowbubble.app.vision.TargetLocator
+import com.flowbubble.app.vision.TextMatcher
 import com.flowbubble.app.voice.AiRole
 import com.flowbubble.app.voice.Command
 import com.flowbubble.app.voice.CommandParser
@@ -150,6 +155,9 @@ class CommandExecutor(
             is Command.ComposeEmail -> composeEmail(command.to, command.subject)
             is Command.NewEvent -> newEvent(command.title)
             Command.ScreenActions -> screenActions()
+            is Command.Watch -> watch(command)
+            is Command.Point -> point(command)
+            is Command.Clarify -> clarify(command)
         }
     }
 
@@ -894,6 +902,178 @@ class CommandExecutor(
                 )
             )
         }
+    }
+
+    // ---- Watching and pointing ---------------------------------------------------------------
+    // "keep watching this screen" opens the live session, and "the third one" / "that chat at the
+    // top" / "the blue button" is answered from the ordered targets it maintains. Both degrade
+    // honestly: with no session a pointing phrase falls back to the ordinal/label tap it used to do,
+    // and an ambiguous reference becomes a question instead of a guess.
+
+    /** Revision the watch opened at, so "that" means what appeared since the user started looking. */
+    private var pointingBaselineRevision = 0
+
+    private fun watch(command: Command.Watch) {
+        if (command.enabled) {
+            // "watch until it's done" is eyes for one task: the agent releases an unpinned session when
+            // the run finishes, while a plain "keep watching" is pinned until the user says stop.
+            ScreenSession.start(context, fromUser = !command.untilDone)
+            if (!ScreenSession.isWatching()) {
+                record("Screen", "Start watching the screen", "failed")
+                ui.showPanel(
+                    PanelContent(
+                        title = "I couldn't start watching",
+                        body = ScreenSession.error() ?: "FlowBubble needs accessibility access to read the screen.",
+                        actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
+                    )
+                )
+                return
+            }
+            pointingBaselineRevision = ScreenSession.revision()
+            record(
+                "Screen",
+                if (command.untilDone) "Watching until the task is done" else "Watching the screen",
+                "done"
+            )
+            ui.showPanel(
+                PanelContent(
+                    title = "Watching the screen",
+                    body = ScreenSession.status() + "\n\n" +
+                        (if (command.untilDone) {
+                            "I'll stop when the task finishes."
+                        } else {
+                            "Say \u201Cstop watching\u201D to end it. Frames stay in memory only, " +
+                                "are never saved, and are only read when something on screen changes."
+                        }),
+                    scrollable = true,
+                    actions = listOf(
+                        PanelAction("Stop watching") {
+                            ScreenSession.stop(context)
+                            record("Screen", "Stopped watching the screen", "done")
+                            ui.showPanel(PanelContent(title = "Stopped watching", autoDismissMs = 1200))
+                        },
+                        PanelAction("Close", primary = true) { ui.closePanel() }
+                    )
+                )
+            )
+            return
+        }
+        val wasWatching = ScreenSession.isWatching()
+        ScreenSession.stop(context)
+        record("Screen", "Stopped watching the screen", if (wasWatching) "done" else "unverified")
+        ui.showPanel(
+            PanelContent(
+                title = if (wasWatching) "Stopped watching" else "I wasn't watching",
+                body = if (wasWatching) {
+                    "Screen reading is off and anything it was holding is released."
+                } else {
+                    "Nothing was watching this screen, so nothing changed."
+                },
+                autoDismissMs = 1600
+            )
+        )
+    }
+
+    private suspend fun point(command: Command.Point) {
+        val service = FlowAccessibilityService.instance
+        if (service == null) {
+            accessibilityBlocked("tap on screen")
+            return
+        }
+        val appeared = appearedForPointing()
+        val resolution = ScreenSession.resolvePointing(command.phrase, appeared)
+            ?: run {
+                val model = buildModel(service, includePixels = ScreenCapture.isActive)
+                    ?: return@run null
+                TargetLocator.resolve(
+                    phrase = command.phrase,
+                    targets = model.targets,
+                    appeared = appeared,
+                    hueOf = { box -> ScreenSession.hueAt(box) },
+                    screenWidth = model.screenWidth,
+                    screenHeight = model.screenHeight
+                )
+            }
+        when (resolution) {
+            null -> tap(Command.Tap(command.phrase, TargetLocator.parse(command.phrase).ordinal))
+            is PointResolution.Found -> {
+                if (resolution.target.label.isBlank()) {
+                    record("Screen", "Point at ${command.phrase}", "unverified")
+                    ui.showPanel(
+                        PanelContent(
+                            title = "I can't name that one",
+                            body = "I think you mean the control ${resolution.evidence}, but it has no " +
+                                "readable label, so I won't tap a blind coordinate.",
+                            actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
+                        )
+                    )
+                    return
+                }
+                ui.showPanel(
+                    PanelContent(
+                        title = "\u201C${command.phrase}\u201D",
+                        body = "I read it as \u201C${resolution.target.label}\u201D - ${resolution.evidence}.",
+                        autoDismissMs = 1200
+                    )
+                )
+                delay(300)
+                tap(Command.Tap(resolution.target.label))
+            }
+            is PointResolution.Ambiguous -> clarify(
+                Command.Clarify(
+                    question = resolution.question,
+                    body = resolution.reason,
+                    choices = resolution.candidates.map { it.label }.filter { it.isNotBlank() }
+                )
+            )
+            is PointResolution.NotFound -> {
+                // Nothing matched, but the old label/ordinal tap may still know: a screen with no
+                // actionable targets at all shouldn't lose the behaviour it had before this existed.
+                record("Screen", "Point at ${command.phrase}", "unverified")
+                ui.showPanel(
+                    PanelContent(
+                        title = "I couldn't tell which one",
+                        body = resolution.reason + " Say \u201Ckeep watching this screen\u201D and try again, " +
+                            "or name the button itself.",
+                        actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
+                    )
+                )
+            }
+        }
+    }
+
+    private fun appearedForPointing(): Set<String> {
+        if (!ScreenSession.isWatching()) return emptySet()
+        return ScreenSession.since(pointingBaselineRevision).appeared.toSet()
+    }
+
+    private fun clarify(command: Command.Clarify) {
+        val choices = command.choices.filter { it.isNotBlank() }.take(4)
+        if (choices.isEmpty()) {
+            ui.showPanel(
+                PanelContent(
+                    title = "Which one?",
+                    body = command.body.ifBlank { "I can see more than one match and I won't guess." },
+                    actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
+                )
+            )
+            record("Screen", "Asked which one", OutcomeKind.AWAITING_USER.historyStatus())
+            return
+        }
+        ui.showPanel(
+            PanelContent(
+                title = command.question.ifBlank { "Which one?" },
+                body = command.body + " I won't tap anything until you pick.",
+                actions = choices.map { choice ->
+                    PanelAction(choice.take(28)) {
+                        val next = CommandParser.parse(command.template.replace("%s", choice))
+                            ?: Command.Tap(choice)
+                        execute(next, command.template.replace("%s", choice))
+                    }
+                } + PanelAction("Cancel") { ui.closePanel() }
+            )
+        )
+        record("Screen", "Asked which one: ${choices.joinToString(", ").take(80)}", OutcomeKind.AWAITING_USER.historyStatus())
     }
 
     private suspend fun tap(command: Command.Tap) {

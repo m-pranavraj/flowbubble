@@ -6,6 +6,7 @@ import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.flowbubble.app.voice.AiConfig
+import com.flowbubble.app.voice.AiEngineKind
 import com.flowbubble.app.voice.AiProfile
 import com.flowbubble.app.voice.AiSettings
 import org.json.JSONArray
@@ -92,7 +93,9 @@ object AiStore {
         store.edit {
             store.all.keys.filter { it !in ids }.forEach { remove(it) }
             settings.profiles.forEach { profile ->
-                val key = settings.keys[profile.id].orEmpty()
+                // A local profile has no key to keep, and an old one left under its id is removed
+                // rather than encrypted forever for a model that never talks to a server.
+                val key = if (profile.isOnDevice) "" else settings.keys[profile.id].orEmpty()
                 if (key.isEmpty()) remove(profile.id) else putString(profile.id, key)
             }
         }
@@ -134,9 +137,14 @@ object AiStore {
                         .put("provider", it.providerId)
                         .put("baseUrl", it.baseUrl)
                         .put("model", it.model)
+                        .put("engine", encodeEngine(it.engine))
                 )
             }
         }.toString()
+
+    /** Only the local engine is written out; a hosted profile stays exactly the old shape on disk. */
+    private fun encodeEngine(engine: AiEngineKind): String =
+        if (engine == AiEngineKind.OnDevice) "on-device" else "hosted"
 
     private fun decodeProfiles(raw: String?): List<AiProfile> = runCatching {
         val array = JSONArray(raw ?: "[]")
@@ -147,7 +155,10 @@ object AiStore {
                 label = item.optString("label"),
                 providerId = item.optString("provider"),
                 baseUrl = item.optString("baseUrl"),
-                model = item.optString("model")
+                model = item.optString("model"),
+                // A profile saved before this field existed has no engine key, and no engine key has
+                // always meant a hosted endpoint.
+                engine = AiEngineKind.from(item.optString("engine", "hosted"))
             )
         }.filter { it.id.isNotEmpty() }
     }.getOrDefault(emptyList())

@@ -15,6 +15,18 @@ object ScreenCapture {
         val blackLikely: Boolean
     )
 
+    /**
+     * Called for every streamed frame, on the capture thread, while the frame is still valid.
+     *
+     * The bitmap belongs to the capture pipeline and is recycled when the next frame lands, so a
+     * listener has to finish with it inside this callback: sample it, or copy the part it needs.
+     * A listener must stay quick and must never call back into ScreenCapture, which is holding a
+     * lock while it dispatches. Frames are memory-only and are never written to disk or logged.
+     */
+    fun interface FrameListener {
+        fun onFrame(frame: Frame)
+    }
+
     @Volatile
     var isActive: Boolean = false
         private set
@@ -26,6 +38,7 @@ object ScreenCapture {
     private val lock = Any()
     private var latest: Frame? = null
     private val listeners = CopyOnWriteArraySet<() -> Unit>()
+    private val frameListeners = CopyOnWriteArraySet<FrameListener>()
 
     fun requestConsent(context: Context) {
         val intent = android.content.Intent(context, CaptureConsentActivity::class.java)
@@ -51,9 +64,15 @@ object ScreenCapture {
     }
 
     fun postFrame(bitmap: Bitmap, screenWidth: Int, screenHeight: Int, blackLikely: Boolean) {
+        val frame = Frame(bitmap, System.currentTimeMillis(), screenWidth, screenHeight, blackLikely)
         synchronized(lock) {
-            latest?.bitmap?.takeIf { !it.isRecycled }?.recycle()
-            latest = Frame(bitmap, System.currentTimeMillis(), screenWidth, screenHeight, blackLikely)
+            // The previous frame is only released here, and dispatch is single-threaded: every
+            // listener finishes with a bitmap before the next one is allowed to recycle it.
+            latest?.bitmap?.takeIf { it !== bitmap && !it.isRecycled }?.recycle()
+            latest = frame
+            frameListeners.forEach { listener ->
+                runCatching { listener.onFrame(frame) }
+            }
         }
     }
 
@@ -80,6 +99,15 @@ object ScreenCapture {
 
     fun removeListener(listener: () -> Unit) {
         listeners.remove(listener)
+    }
+
+    /** Subscribes to the live frame stream. See [FrameListener] for the ownership rules. */
+    fun addFrameListener(listener: FrameListener) {
+        frameListeners.add(listener)
+    }
+
+    fun removeFrameListener(listener: FrameListener) {
+        frameListeners.remove(listener)
     }
 
     fun clearError() {
