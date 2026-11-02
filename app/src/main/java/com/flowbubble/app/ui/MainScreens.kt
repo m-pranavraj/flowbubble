@@ -48,10 +48,6 @@ import com.flowbubble.app.core.PermissionState
 import com.flowbubble.app.core.Permissions
 import com.flowbubble.app.notifications.NotificationCenter
 
-internal val ReadyGreen = Color(0xFF34D399)
-internal val NeedAmber = Color(0xFFFBBF24)
-internal val WarnRed = Color(0xFFF87171)
-
 @Composable
 fun FlowBubbleApp(
     screen: String,
@@ -188,85 +184,6 @@ private fun NavTabs(current: String, onNavigate: (String) -> Unit) {
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             )
         }
-    }
-}
-
-@Composable
-internal fun FlowCard(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
-                shape = RoundedCornerShape(22.dp)
-            )
-            .padding(18.dp),
-        content = content
-    )
-}
-
-@Composable
-internal fun SectionLabel(text: String) {
-    Text(
-        text = text.uppercase(),
-        color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.labelSmall,
-        letterSpacing = 1.2.sp,
-        fontWeight = FontWeight.SemiBold
-    )
-}
-
-@Composable
-internal fun BodyText(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        modifier = modifier,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        lineHeight = 21.sp
-    )
-}
-
-@Composable
-internal fun StatusChip(text: String, color: Color) {
-    Text(
-        text = text,
-        color = color,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(color.copy(alpha = 0.14f))
-            .padding(horizontal = 9.dp, vertical = 3.dp)
-    )
-}
-
-@Composable
-internal fun FlowPrimaryButton(
-    text: String,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(50.dp),
-        shape = RoundedCornerShape(15.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    ) {
-        Text(text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
     }
 }
 
