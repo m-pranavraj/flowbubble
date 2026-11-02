@@ -5,17 +5,35 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Near-black with a plum corner so the lavender face has somewhere to glow against. -->
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:type="linear"
-                android:startX="12"
-                android:startY="6"
-                android:endX="96"
-                android:endY="102">
-                <item android:offset="0" android:color="#FF0A1017" />
-                <item android:offset="0.55" android:color="#FF0E1B24" />
-                <item android:offset="1" android:color="#FF123A3F" />
+                android:startX="4"
+                android:startY="2"
+                android:endX="104"
+                android:endY="106">
+                <item android:offset="0" android:color="#FF050308" />
+                <item android:offset="0.45" android:color="#FF0A0710" />
+                <item android:offset="0.78" android:color="#FF160A1E" />
+                <item android:offset="1" android:color="#FF2A0F22" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Off-axis bloom behind the head, kept inside the safe zone. -->
+    <path android:pathData="M54,55 m-33,0 a33,33 0 1,0 66,0 a33,33 0 1,0 -66,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="55"
+                android:gradientRadius="33">
+                <item android:offset="0" android:color="#338B5CF6" />
+                <item android:offset="0.7" android:color="#147A1F3D" />
+                <item android:offset="1" android:color="#00000000" />
             </gradient>
         </aapt:attr>
     </path>

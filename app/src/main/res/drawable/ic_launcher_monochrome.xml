@@ -5,28 +5,29 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Themed-icon layer: one colour, so Android can tint it with the wallpaper palette. -->
+    <!-- Themed-icon layer: one colour, silhouette only. Android tints this, so the face is
+         carried by the head outline and the eyes rather than by any fill contrast. -->
     <path
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="5"
-        android:strokeLineJoin="round"
-        android:pathData="M44,34 H64 A14,14 0 0 1 78,48 V56 A14,14 0 0 1 64,70 H44 A14,14 0 0 1 30,56 V48 A14,14 0 0 1 44,34 Z M44,70 L44,81 L55,70 Z" />
+        android:strokeWidth="3.4"
+        android:pathData="M27,56 A27,27 0 1 0 81,56 A27,27 0 1 0 27,56 Z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:pathData="M54,31 Q53,27 56,24.5" />
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M57,40 A4.5,4.5 0 0 1 61.5,44.5 V50 A4.5,4.5 0 0 1 52.5,50 V44.5 A4.5,4.5 0 0 1 57,40 Z" />
+        android:pathData="M54.4,24.5 A2.6,2.6 0 1 0 59.6,24.5 A2.6,2.6 0 1 0 54.4,24.5 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M38.2,53 A5.8,7.4 0 1 0 49.8,53 A5.8,7.4 0 1 0 38.2,53 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M58.2,53 A5.8,7.4 0 1 0 69.8,53 A5.8,7.4 0 1 0 58.2,53 Z" />
     <path
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="3"
+        android:strokeWidth="2.8"
         android:strokeLineCap="round"
-        android:pathData="M51,48 Q51,56.5 57,56.5 Q63,56.5 63,48" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:pathData="M57,56.5 V61" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:pathData="M52.5,61 H61.5" />
+        android:pathData="M46,66 Q54,73 62,66" />
 </vector>

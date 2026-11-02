@@ -1,44 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Floating bubble with a tail, drawn inside the 66dp adaptive safe zone. -->
-    <path
-        android:fillColor="#5EEAD4"
-        android:pathData="M44,34 H64 A14,14 0 0 1 78,48 V56 A14,14 0 0 1 64,70 H44 A14,14 0 0 1 30,56 V48 A14,14 0 0 1 44,34 Z M44,70 L44,81 L55,70 Z" />
+    <!-- The companion's face. Everything sits inside the 66dp adaptive safe zone so no
+         launcher mask can clip the eyes, and the head is large enough to read at 32dp. -->
 
-    <!-- Flow lines: speech arriving at the bubble. -->
+    <!-- Antenna: a stem rising from the head with a lit tip. -->
     <path
-        android:strokeColor="#0B0F14"
-        android:strokeWidth="3"
+        android:strokeColor="#FFB9A7FF"
+        android:strokeWidth="2.8"
         android:strokeLineCap="round"
-        android:pathData="M36,45 H44" />
+        android:pathData="M54,31 Q53,27 56,24.5" />
     <path
-        android:strokeColor="#0B0F14"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:pathData="M36,53 H41" />
+        android:fillColor="#FFFF7A96"
+        android:pathData="M54.4,24.5 A2.6,2.6 0 1 0 59.6,24.5 A2.6,2.6 0 1 0 54.4,24.5 Z" />
 
-    <!-- Microphone. -->
+    <!-- Head. -->
+    <path android:pathData="M27,56 A27,27 0 1 0 81,56 A27,27 0 1 0 27,56 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="33"
+                android:startY="33"
+                android:endX="77"
+                android:endY="80">
+                <item android:offset="0" android:color="#FFDCCFFF" />
+                <item android:offset="0.46" android:color="#FFB9A7FF" />
+                <item android:offset="1" android:color="#FF7C4DDD" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Blush, so the face reads as a baby rather than a robot. -->
     <path
-        android:fillColor="#0B0F14"
-        android:pathData="M57,40 A4.5,4.5 0 0 1 61.5,44.5 V50 A4.5,4.5 0 0 1 52.5,50 V44.5 A4.5,4.5 0 0 1 57,40 Z" />
+        android:fillColor="#59FF2D55"
+        android:pathData="M30.4,64 A4.6,2.6 0 1 0 39.6,64 A4.6,2.6 0 1 0 30.4,64 Z" />
     <path
-        android:strokeColor="#0B0F14"
-        android:strokeWidth="3"
+        android:fillColor="#59FF2D55"
+        android:pathData="M68.4,64 A4.6,2.6 0 1 0 77.6,64 A4.6,2.6 0 1 0 68.4,64 Z" />
+
+    <!-- Eyes. -->
+    <path
+        android:fillColor="#FF050308"
+        android:pathData="M38.2,53 A5.8,7.4 0 1 0 49.8,53 A5.8,7.4 0 1 0 38.2,53 Z" />
+    <path
+        android:fillColor="#FF050308"
+        android:pathData="M58.2,53 A5.8,7.4 0 1 0 69.8,53 A5.8,7.4 0 1 0 58.2,53 Z" />
+
+    <!-- Specular highlights. -->
+    <path
+        android:fillColor="#FFF2EEFB"
+        android:pathData="M43.9,50 A2.1,2.1 0 1 0 48.1,50 A2.1,2.1 0 1 0 43.9,50 Z" />
+    <path
+        android:fillColor="#FFF2EEFB"
+        android:pathData="M63.9,50 A2.1,2.1 0 1 0 68.1,50 A2.1,2.1 0 1 0 63.9,50 Z" />
+
+    <!-- Smile. -->
+    <path
+        android:strokeColor="#FF050308"
+        android:strokeWidth="2.8"
         android:strokeLineCap="round"
-        android:pathData="M51,48 Q51,56.5 57,56.5 Q63,56.5 63,48" />
-    <path
-        android:strokeColor="#0B0F14"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:pathData="M57,56.5 V61" />
-    <path
-        android:strokeColor="#0B0F14"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:pathData="M52.5,61 H61.5" />
+        android:pathData="M46,66 Q54,73 62,66" />
 </vector>
