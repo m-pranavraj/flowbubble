@@ -5,10 +5,19 @@
  * Setup screen, and require the bubble window to be present over another app.
  */
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const ADB = 'C:/Users/Pranav/AppData/Local/Android/Sdk/platform-tools/adb.exe';
 const DEVICE = process.env.DEVICE || 'emulator-5554';
 const PKG = 'com.flowbubble.app';
+
+/*
+ * The version under test comes from the build file, not from a literal in this script. A pinned
+ * version made the first check fail on every release after the one it was written for, which is the
+ * same mistake as hard-coding a passing score: the gate reports on the world instead of testing it.
+ */
+const gradle = readFileSync(new URL('../app/build.gradle.kts', import.meta.url), 'utf8');
+const expectedVersion = gradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1] ?? '';
 
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 const sleep = (ms) => Atomics.wait(sleepBuffer, 0, 0, ms);
@@ -106,19 +115,56 @@ function turnBubbleOn() {
   return overlayRunning();
 }
 
+/*
+ * A release build has no debug receiver, so this script cannot probe the accessibility connection the
+ * way the benchmark does. What it can do is the same thing a user does from the Setup screen, and then
+ * read Android's own answer: dumpsys accessibility lists the service under Bound services, and parks a
+ * dead one under Crashed services. Deleting the setting first matters — writing back the same component
+ * string changes nothing, and Android will not rebind a service whose process was reinstall-killed.
+ */
+function grantPrerequisites() {
+  for (const permission of ['RECORD_AUDIO', 'POST_NOTIFICATIONS']) {
+    shell(`pm grant ${PKG} android.permission.${permission}`, { allowFail: true });
+  }
+  shell(`appops set ${PKG} SYSTEM_ALERT_WINDOW allow`, { allowFail: true });
+}
+
+function bindAccessibility(attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    shell('settings delete secure --user 0 enabled_accessibility_services', { allowFail: true });
+    sleep(3000);
+    shell(
+      `settings put secure --user 0 enabled_accessibility_services ${PKG}/${PKG}.access.FlowAccessibilityService`,
+      { allowFail: true },
+    );
+    shell('settings put secure --user 0 accessibility_enabled 1', { allowFail: true });
+    sleep(6000);
+    const state = accessibilityState();
+    if (state.bound && !state.crashed) return state;
+  }
+  return accessibilityState();
+}
+
 const checks = [];
 const record = (name, ok, detail = '') => {
   checks.push({ name, ok, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  ${detail}` : ''}`);
 };
 
-record('release build installed', /versionName=1\.0\.1/.test(shell('dumpsys package com.flowbubble.app', { allowFail: true })), shell('dumpsys package com.flowbubble.app', { allowFail: true }).match(/versionName=\S+/)?.[0] ?? '');
+const installed = shell('dumpsys package com.flowbubble.app', { allowFail: true });
+const installedVersion = installed.match(/versionName=(\S+)/)?.[1] ?? '';
+record(
+  'release build installed',
+  installedVersion === expectedVersion && !/DEBUGGABLE/.test(installed),
+  `versionName=${installedVersion}, expected ${expectedVersion}, debuggable=${/DEBUGGABLE/.test(installed)}`,
+);
 
 const noDebugReceiver = !sh(['shell', 'dumpsys', 'package', PKG], { allowFail: true }).includes('DebugSimulateReceiver');
 record('no debug transcript receiver in the release manifest', noDebugReceiver);
 
-const a11y = accessibilityState();
-record('accessibility service bound', a11y.bound && !a11y.crashed, a11y.crashed ? 'android reports it crashed' : '');
+grantPrerequisites();
+const a11y = bindAccessibility();
+record('accessibility service bound', a11y.bound && !a11y.crashed, a11y.crashed ? 'android reports it crashed' : a11y.bound ? '' : 'android never listed the service as bound');
 
 record('bubble turns on from the app Setup screen', turnBubbleOn(), overlayRunning() ? 'OverlayService running' : 'OverlayService never started');
 

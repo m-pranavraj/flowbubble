@@ -30,7 +30,7 @@ transcript.
 | Unit tests | 38 files, 6,664 lines, **532 tests, 0 failures, 0 skipped** (measured from `app/build/test-results/testDebugUnitTest/*.xml`) |
 | Debug-only source | 1 file — `app/src/debug/java/com/flowbubble/app/DebugSimulateReceiver.kt`, guarded by `BuildConfig.DEBUG` and absent from the release APK |
 | Manifest permissions requested | 13 `uses-permission` entries (12 `android.permission.*` plus `com.android.alarm.permission.SET_ALARM`) |
-| Artifacts | `YourBubble-1.2.0-release.apk` (102,868,227 bytes), `YourBubble-1.2.0-debug.apk` (106,777,318 bytes) |
+| Artifacts | `YourBubble-1.2.0-release.apk` (102,868,227 bytes, V2-signed), `YourBubble-1.2.0-debug.apk` (107,001,209 bytes) |
 | Instrumented tests | **none.** There is no `app/src/androidTest`, and no Robolectric. Nothing here is verified inside a runtime by the test suite. |
 
 ---
@@ -428,7 +428,7 @@ the enforcement point, and the ones with a user-visible consequence have device 
 | `scripts/benchmark.mjs` | Frozen 67-task device execution benchmark; injects a phrase, waits for the trace entry, records the verdict | **63 passed, 2 skipped, 2 failed** on the shipping build (`verify/benchmark/latest.md`, 2026-11-03 10:24). Both failures are the YouTube wall below, not product defects. An earlier run the same morning read *0 passed, 67 failed* with every row saying "no new trace entries" — a harness/injection failure, which is why a run like that was re-taken instead of published. |
 | `scripts/provider-check.mjs` | Proves the settings/profile/validation paths against a local OpenAI-compatible mock | Evidence in `verify/provider/` |
 | `scripts/mock-openai.mjs` | The local mock endpoint itself | used by the above |
-| `scripts/release-check.mjs` | Checks the release gate before tagging | part of the release flow |
+| `scripts/release-check.mjs` | Checks the release gate before tagging | **6/6 on the shipped 1.2.0 APK** — installs, has no debug receiver, binds accessibility, turns the bubble on through the app's own Setup screen, and shows the overlay window over the launcher (`verify/release_build_bubble.png`). It used to pin `versionName=1.0.1` in its own first check, so it failed every release after the one it was written for; it now reads the expected version out of `app/build.gradle.kts`. It also only *claimed* to bind accessibility — on a fresh install nothing was bound and the run failed for that reason. |
 | `verify/*.png` | Device screenshots backing the DEVICE claims in this file | on disk |
 | `app/src/test/` | 532 JVM unit tests, 0 failures | green at build time |
 

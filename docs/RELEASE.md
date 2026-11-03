@@ -109,18 +109,29 @@ gh release create v1.2.0 \
 
 ## Installing a release build
 
-Release and debug builds are signed with different keys, so Android rejects one over the
-other. Switching channels needs an uninstall first, which clears the app's granted
-permissions and its history:
+Release and debug builds are signed with different keys, so Android rejects one over the other. This is
+measured, not assumed — installing the release over a debug build returns:
+
+```
+adb: failed to install …: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package
+com.flowbubble.app signatures do not match newer version; ignoring!]
+```
+
+and the debug build stays installed and running. Switching channels therefore needs an uninstall first,
+which clears the app's granted permissions and its history:
 
 ```bash
 adb uninstall com.flowbubble.app
 adb install -r YourBubble-1.2.0-release.apk
 ```
 
-Then reopen the Setup screen and re-grant microphone, overlay, accessibility, notification
-access, and screen capture. The debug transcript receiver does not exist in a release build
-(`src/debug` only), so commands must come from real speech on a release APK.
+Then reopen the Setup screen and re-grant microphone, overlay, accessibility, notification access, and
+screen capture. `scripts/release-check.mjs` drives exactly that path — bind accessibility, turn the
+bubble on through the app's own Setup screen, and require the overlay window to exist over another app —
+because a release build has no debug transcript receiver (`src/debug` only). Nothing in this repo can
+speak a command into a release APK: the test image has no recognizer language pack, so what
+`release-check.mjs` proves is that the shipped artifact installs, binds and draws. Command execution on
+a release build is unverified by design, and only real speech on real hardware can close that gap.
 
 ## Icon
 
