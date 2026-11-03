@@ -132,14 +132,78 @@ class FlowAccessibilityService : AccessibilityService() {
         return false
     }
 
+    /**
+     * The field dictated text belongs in.
+     *
+     * The parent walk from `focusedNode()` is the answer for a classic `EditText` and stays the first
+     * try, because it is one hop. When it comes up empty the window is searched, because a Jetpack
+     * Compose text field does not always publish an input-focus node at all — and "no focus node" is
+     * not the same claim as "no field", which is the mistake that made dictation report "Nowhere to
+     * type" over ChatGPT, Gmail, Chrome and this app's own Live screen.
+     */
     fun focusedEditable(): AccessibilityNodeInfo? {
-        val focus = focusedNode() ?: return null
-        var node: AccessibilityNodeInfo? = focus
-        var depth = 0
-        while (node != null && depth < 8) {
-            if (node.isEditable && !node.isPassword) return node
-            node = node.parent
-            depth++
+        val focus = focusedNode()
+        if (focus != null) {
+            var node: AccessibilityNodeInfo? = focus
+            var depth = 0
+            while (node != null && depth < 8) {
+                if (node.isEditable && !node.isPassword) return node
+                node = node.parent
+                depth++
+            }
+            // Credentials win by losing: with a password field focused, nothing else may be written.
+            if (isPasswordFocused()) return null
+        }
+        return editableByScan()
+    }
+
+    /** Every window that could hold the user's field, the active one first, then topmost app windows. */
+    private fun scannedRoots(): List<AccessibilityNodeInfo> {
+        val active = rootInActiveWindow
+        val activeId = active?.windowId ?: -1
+        val others = windows
+            .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+            .sortedByDescending { it.layer }
+            .mapNotNull { it.root }
+            .filter { it.windowId != activeId }
+        return listOfNotNull(active) + others
+    }
+
+    private fun AccessibilityNodeInfo.isField(): Boolean =
+        isEditable || isTextEntryNode() || className?.toString()?.contains("EditText") == true
+
+    private fun AccessibilityNodeInfo.isTextEntryNode(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && isTextEntryKey
+
+    private fun descriptorOf(node: AccessibilityNodeInfo) = FieldCandidate(
+        editable = node.isEditable || node.className?.toString()?.contains("EditText") == true,
+        password = node.isPassword,
+        textEntry = node.isTextEntryNode(),
+        focused = node.isFocused
+    )
+
+    /**
+     * Bounded the same way [visibleNodes] is: this runs on the main thread, so a screen with thousands
+     * of nodes must cost a fixed amount. Once a handful of fields are found the answer is already "more
+     * than one, so no", and reading further would only make the panel slower to appear.
+     */
+    private fun editableByScan(): AccessibilityNodeInfo? {
+        for (root in scannedRoots()) {
+            val found = ArrayList<AccessibilityNodeInfo>()
+            val marks = ArrayList<FieldCandidate>()
+            val queue = ArrayDeque<AccessibilityNodeInfo>()
+            queue.add(root)
+            var visited = 0
+            while (queue.isNotEmpty() && visited < 1200 && found.size < 8) {
+                val node = queue.removeFirst()
+                visited++
+                if (node.isField()) {
+                    found.add(node)
+                    marks.add(descriptorOf(node))
+                }
+                for (i in 0 until node.childCount) node.getChild(i)?.let(queue::add)
+            }
+            FocusedFieldFinder.pick(marks)?.let { return found[it] }
         }
         return null
     }

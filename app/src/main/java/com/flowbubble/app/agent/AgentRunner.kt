@@ -1586,6 +1586,7 @@ class AgentRunner(
                     if (kind == OutcomeKind.COMPLETED) "Done. ${outcome.summary.take(140)}"
                     else "Finished with notes. ${outcome.summary.take(140)}"
                 )
+                ui.onCommandOutcome(kind.historyStatus())
                 ui.showPanel(
                     PanelContent(
                         title = if (kind == OutcomeKind.COMPLETED) "Task complete" else "Finished with notes",

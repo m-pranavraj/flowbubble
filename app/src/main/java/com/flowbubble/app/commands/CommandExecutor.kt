@@ -183,6 +183,7 @@ class CommandExecutor(
         HistoryStore.add(context, kind, summary, status)
         if (status == "done" || status == "failed" || status == "unverified" || status == "copied") {
             ui.announce(summary)
+            ui.onCommandOutcome(status)
         }
     }
 
@@ -2237,6 +2238,23 @@ class CommandExecutor(
                         title = "No flashlight",
                         body = result.detail ?: "I couldn't find a camera flash on this device.",
                         actions = listOf(PanelAction("Close", primary = true) { ui.closePanel() })
+                    )
+                )
+            }
+            TorchController.State.NO_PERMISSION -> {
+                record("System", "Flashlight", "setup needed")
+                ui.showPanel(
+                    PanelContent(
+                        title = "Flashlight needs Camera",
+                        body = "Android asks your permission before an app may use the flash — your phone has one. " +
+                            "Allow it under Setup \u2192 Permissions \u2192 Camera.",
+                        actions = listOf(
+                            PanelAction("Open setup", primary = true) {
+                                ui.closePanel()
+                                MainActivity.open(context, MainActivity.SCREEN_SETUP)
+                            },
+                            PanelAction("Not now") { ui.closePanel() }
+                        )
                     )
                 )
             }

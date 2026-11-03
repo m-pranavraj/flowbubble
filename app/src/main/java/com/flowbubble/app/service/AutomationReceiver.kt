@@ -25,6 +25,8 @@ import com.flowbubble.app.agent.NotificationSignal
 import com.flowbubble.app.agent.TriggerKind
 import com.flowbubble.app.commands.CommandExecutor
 import com.flowbubble.app.core.AutomationStore
+import com.flowbubble.app.core.Permissions
+import com.flowbubble.app.core.Prefs
 import com.flowbubble.app.notifications.NotificationCenter
 import com.flowbubble.app.overlay.PanelAction
 import com.flowbubble.app.overlay.PanelContent
@@ -139,8 +141,28 @@ class AutomationReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_APPROVE -> answer(app, intent)
             ACTION_DISMISS -> clearPrompts(app)
+            Intent.ACTION_BOOT_COMPLETED -> afterReboot(app)
             else -> sweep(app, intent)
         }
+    }
+
+    /**
+     * Android deletes no alarm on reboot but does delete the running service, so a boot arrives at a
+     * phone whose rules are scheduled and whose bubble is gone. Bring the bubble back when the user
+     * left it on and something is actually waiting for it, then arm as usual.
+     */
+    private fun afterReboot(context: Context) {
+        val armed = AutomationStore.list(context)
+            .any { it.enabled && it.steps.isNotEmpty() }
+        if (BootRestore.shouldRelaunch(
+                bubbleOn = Prefs.bubbleEnabled(context),
+                overlayGranted = Permissions.canDrawOverlays(context),
+                automationsArmed = armed
+            )
+        ) {
+            OverlayService.start(context)
+        }
+        armNext(context)
     }
 
     private fun sweep(context: Context, intent: Intent) {

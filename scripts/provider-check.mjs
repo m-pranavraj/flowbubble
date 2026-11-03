@@ -45,6 +45,20 @@ const screen = (name) =>
   shell(`am start -n ${PKG}/.MainActivity --es ${PKG}.extra.SCREEN ${name}`, { allowFail: true, timeout: 20000 });
 
 /*
+ * A dump that still names the Settings card is not proof the card is on the screen. Gestures go to
+ * whatever window actually holds focus, so one home press — the harness's own accessibility probe ends
+ * on the launcher — turns every later swipe into a scroll of the home screen, and the run then drives
+ * the app from a tree it can no longer reach. Focus is read from the window manager and a screen that
+ * lost it is re-opened instead of scrolled.
+ */
+const focusedWindow = () =>
+  (shell('dumpsys window', { allowFail: true, timeout: 25000 })
+    .split('\n')
+    .find((line) => line.includes('mCurrentFocus=')) ?? 'no focus line').trim();
+
+const appFocused = () => focusedWindow().includes(`${PKG}/${PKG}.MainActivity`);
+
+/*
  * A cold start is still drawing when the intent lands, so the first dump after `screen` can return
  * the previous screen. Every tap the harness then makes is aimed at a node that is not on the device,
  * and the run reports a broken UI when what happened is a race. The Settings column is re-asked for
@@ -52,6 +66,11 @@ const screen = (name) =>
  */
 function showSettings(attempts = 10) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (!appFocused()) {
+      screen('settings');
+      sleep(1400);
+      continue;
+    }
     const xml = dumpUi();
     if (first(xml, 'AI MODELS')) return xml;
     screen('settings');
@@ -188,6 +207,12 @@ function hideKeyboard() {
 
 /** Types with the device's own key injection so the app's field really receives the text. */
 function type(value) {
+  // Key injection also goes to whichever window holds focus; unguarded it writes a model endpoint
+  // into the launcher's search box and the check then blames the app for a field it never had.
+  if (!appFocused()) {
+    console.log(`   [type] skipped: ${focusedWindow()} holds the screen, not the app`);
+    return;
+  }
   shell(`input text ${deviceQuote(value.replace(/ /g, '%s'))}`, { allowFail: true, timeout: 20000 });
   sleep(800);
   hideKeyboard();
@@ -243,6 +268,17 @@ function windowsOver(a, b) {
 }
 
 function scroll(fromFraction, toFraction, label) {
+  /*
+   * A gesture goes to whichever window holds focus, and the accessibility tree can still name the
+   * Settings card after the launcher has taken the screen — so a scroll that "moves nothing" is often
+   * a scroll of the home screen. The screen is re-opened instead of pushed further.
+   */
+  if (!appFocused()) {
+    console.log(`   [scroll] ${label} skipped: ${focusedWindow()} holds the screen — reopening Settings`);
+    screen('settings');
+    sleep(1500);
+    return false;
+  }
   const before = screenSignature();
   for (let attempt = 0; attempt < 3; attempt += 1) {
     swipe(fromFraction, toFraction);
@@ -257,6 +293,7 @@ function scroll(fromFraction, toFraction, label) {
     `   [scroll] the ${label} gesture moved nothing across three tries — the screen is frozen where it was`
   );
   console.log(`   [scroll] windows over y=${Math.round(h * fromFraction)}–${Math.round(h * toFraction)}: ${windowsOver(h * fromFraction, h * toFraction)}`);
+  console.log(`   [scroll] focus: ${focusedWindow()}`);
   return false;
 }
 
@@ -453,7 +490,13 @@ const addModelNode = (xml) =>
   ADD_MODEL_LABELS.map((label) => below(xml, 'AI MODELS', label) ?? first(xml, label)).find(Boolean) ?? null;
 
 function climbToCard() {
-  for (let climb = 0; climb < 8 && !first(dumpUi(), 'AI MODELS'); climb += 1) scrollUp();
+  for (let climb = 0; climb < 8 && !first(dumpUi(), 'AI MODELS'); climb += 1) {
+    if (appFocused()) scrollUp();
+    else {
+      screen('settings');
+      sleep(1400);
+    }
+  }
 }
 
 /*

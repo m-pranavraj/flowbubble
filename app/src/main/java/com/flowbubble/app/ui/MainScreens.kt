@@ -434,11 +434,11 @@ private fun HomeScreen(
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "${permissions.enabledCount} of 8 permissions on",
+                    text = "${permissions.enabledCount} of ${permissions.total} permissions on",
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.labelMedium,
                     letterSpacing = 0.6.sp,
-                    color = if (permissions.enabledCount == 8) ReadyGreen else Ink.Faint
+                    color = if (permissions.enabledCount == permissions.total) ReadyGreen else Ink.Faint
                 )
                 Text(
                     text = if (permissions.coreReady) "Core ready" else "Core missing",
@@ -637,6 +637,9 @@ private fun SetupScreen(
     val contactsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { onRefresh() }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { onRefresh() }
 
     Column(
         modifier = Modifier
@@ -726,6 +729,16 @@ private fun SetupScreen(
                 granted = permissions.contacts,
                 actionLabel = "Allow contacts",
                 onAction = { contactsLauncher.launch(Manifest.permission.READ_CONTACTS) }
+            )
+            Spacer(Modifier.height(16.dp))
+            RowDivider()
+            Spacer(Modifier.height(16.dp))
+            PermissionRow(
+                title = "Camera",
+                description = "Only for the flashlight. Your Bubble never opens the camera to take a picture or record video.",
+                granted = permissions.camera,
+                actionLabel = "Allow camera",
+                onAction = { cameraLauncher.launch(Manifest.permission.CAMERA) }
             )
             Spacer(Modifier.height(16.dp))
             RowDivider()

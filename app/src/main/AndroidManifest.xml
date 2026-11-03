@@ -14,11 +14,31 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!--
+      Both of these were missing while code already depended on them, which only ever shows up on a
+      phone: setTorchMode needs CAMERA, and an app that does not declare ACCESS_NOTIFICATION_POLICY is
+      not listed under Settings > Do Not Disturb access, so that toggle is unreachable forever.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
+    <!-- The flash is a nice-to-have; the microphone is the product. Neither may veto an install. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!--
+          Without this the recognizer is invisible. SpeechRecognizer.isRecognitionAvailable() resolves
+          RecognitionService through the same package-visibility rules that apply from targetSdk 30, so
+          on a phone it returns false and the app tells the user speech recognition isn't available.
+        -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />

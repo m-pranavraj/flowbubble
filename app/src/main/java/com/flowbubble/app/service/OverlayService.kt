@@ -35,6 +35,7 @@ import com.flowbubble.app.access.TextInsertResult
 import com.flowbubble.app.agent.CapabilityContext
 import com.flowbubble.app.agent.CapabilityRouter
 import com.flowbubble.app.agent.Gap
+import com.flowbubble.app.agent.OutcomeKind
 import com.flowbubble.app.agent.Route
 import com.flowbubble.app.agent.SettingsTarget
 import com.flowbubble.app.capture.ScreenCapture
@@ -101,11 +102,13 @@ class OverlayService : Service(), OverlayUi {
         private const val WAKE_RETRY_BASE_MS = 600L
 
         fun start(context: Context) {
+            Prefs.setBubbleEnabled(context, true)
             val intent = Intent(context, OverlayService::class.java).setAction(ACTION_START)
             runCatching { ContextCompat.startForegroundService(context, intent) }
         }
 
         fun stop(context: Context) {
+            Prefs.setBubbleEnabled(context, false)
             context.stopService(Intent(context, OverlayService::class.java))
         }
     }
@@ -1399,6 +1402,15 @@ class OverlayService : Service(), OverlayUi {
 
     override fun closePanel() {
         panel.close()
+    }
+
+    /**
+     * The companion's own reaction to a finished command. Only a result the history row calls done
+     * earns the happy face — an unverified gesture is not a success, and the character must not claim
+     * one the app refused to claim for itself.
+     */
+    override fun onCommandOutcome(status: String) {
+        if (OutcomeKind.fromHistoryStatus(status) == OutcomeKind.COMPLETED) bubble?.poke(CompanionMood.Happy)
     }
 
     override fun hideForScreenRead() {

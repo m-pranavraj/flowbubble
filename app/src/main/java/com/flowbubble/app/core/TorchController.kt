@@ -1,5 +1,6 @@
 package com.flowbubble.app.core
 
+import android.Manifest
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -8,11 +9,19 @@ import android.os.Looper
 import kotlinx.coroutines.delay
 
 object TorchController {
-    enum class State { ON, OFF, REQUESTED, NO_FLASH, FAILED }
+    enum class State { ON, OFF, REQUESTED, NO_FLASH, NO_PERMISSION, FAILED }
 
     data class Result(val state: State, val detail: String? = null)
 
     suspend fun set(context: Context, enable: Boolean): Result {
+        /*
+         * Asked before the flash is looked for, because without CAMERA every camera call comes back
+         * empty and the app told the user their phone had no flashlight. It has one; the app was not
+         * allowed to see it, and that is a different answer with a different fix.
+         */
+        if (!Permissions.hasPermission(context, Manifest.permission.CAMERA)) {
+            return Result(State.NO_PERMISSION, "Android needs your OK before the app may use the flash.")
+        }
         val manager = context.getSystemService(CameraManager::class.java)
             ?: return Result(State.NO_FLASH, "This device doesn't expose a camera flash.")
         val id = flashCameraId(manager)

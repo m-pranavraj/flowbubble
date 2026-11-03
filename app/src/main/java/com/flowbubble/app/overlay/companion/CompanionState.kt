@@ -50,6 +50,7 @@ object CompanionTiming {
     const val BlinkTickMs = 32L
     const val IdleTickMs = 125L
     const val PokeMs = 900L
+    const val RestMs = 120_000L
 
     const val MinStage = 1
     const val MaxStage = 4
@@ -543,6 +544,7 @@ class CompanionController(startState: CompanionState = CompanionState.Idle) {
     private var lastAmplitudeMs: Long = 0L
     private var pokedMood: CompanionMood = CompanionMood.Neutral
     private var pokedUntilMs: Long = -1L
+    private var restingSinceMs: Long = -1L
 
     /**
      * A short-lived expression that does not touch the persisted [mood] — used for the flinch when
@@ -553,9 +555,23 @@ class CompanionController(startState: CompanionState = CompanionState.Idle) {
         pokedUntilMs = CompanionMath.time(nowMs) + CompanionTiming.PokeMs
     }
 
-    /** The expression actually on the face at [nowMs]: the poke wins while it lasts. */
-    fun moodAt(nowMs: Long): CompanionMood =
-        if (CompanionMath.time(nowMs) < pokedUntilMs) pokedMood else mood
+    /**
+     * The expression actually on the face at [nowMs]: the poke wins while it lasts, and a bubble left
+     * resting on its own drifts to the sleepy face. Both rules read the caller's clock, so nobody has
+     * to run a timer for the character to look like it has been waiting.
+     */
+    fun moodAt(nowMs: Long): CompanionMood {
+        val now = CompanionMath.time(nowMs)
+        if (now < pokedUntilMs) return pokedMood
+        if (isResting(now)) return CompanionMood.Sleepy
+        return mood
+    }
+
+    private fun isResting(now: Long) =
+        restingSinceMs >= 0L &&
+            state == CompanionState.Idle &&
+            mood == CompanionMood.Neutral &&
+            now - restingSinceMs >= CompanionTiming.RestMs
 
     fun setState(next: CompanionState, nowMs: Long) {
         if (state == next) return
@@ -592,6 +608,7 @@ class CompanionController(startState: CompanionState = CompanionState.Idle) {
         speaking = false
         pokedMood = CompanionMood.Neutral
         pokedUntilMs = -1L
+        restingSinceMs = CompanionMath.time(nowMs)
         targetAmplitude = 0f
         smoothedAmplitude = 0f
         lastUpdateMs = -1L
@@ -611,6 +628,12 @@ class CompanionController(startState: CompanionState = CompanionState.Idle) {
 
         val sinceEnter = now - stateEnteredAtMs
         val flutter = CompanionChannels.flutter(now)
+
+        restingSinceMs = when {
+            state != CompanionState.Idle || mood != CompanionMood.Neutral || now < pokedUntilMs -> -1L
+            restingSinceMs < 0L -> now
+            else -> restingSinceMs
+        }
 
         smoothAmplitude(dt, now)
 

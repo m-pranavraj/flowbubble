@@ -27,4 +27,10 @@ interface OverlayUi {
 
     /** Speaks a short status line when hands-free mode is active. Silent otherwise. */
     fun announce(text: String) {}
+
+    /**
+     * Tells the companion how a finished command landed. [status] is the same word the history row
+     * records, so the face and the log can never disagree about what happened.
+     */
+    fun onCommandOutcome(status: String) {}
 }

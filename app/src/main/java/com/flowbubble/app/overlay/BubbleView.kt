@@ -123,6 +123,12 @@ class BubbleView(context: Context) : View(context) {
         invalidate()
     }
 
+    /** A brief expression that does not change the resting mood — the face for something that just happened. */
+    fun poke(expression: CompanionMood) {
+        controller.poke(now(), expression)
+        invalidate()
+    }
+
     /** Optional. Sets the growth stage, clamped to 1..4; safe to never call. */
     fun setStage(stage: Int = CompanionTiming.DefaultStage) {
         controller.setStage(stage)

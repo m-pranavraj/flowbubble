@@ -63,6 +63,16 @@ object Prefs {
     fun setDndRevertAt(context: Context, time: Long) =
         sp(context).edit { putLong("dnd_revert_at", time) }
 
+    /**
+     * The last thing the user did with the switch, so a reboot can tell "I turned it off" from "the
+     * phone restarted". It defaults to off: an app that never had the bubble switched on must not
+     * start drawing overlays on boot just because it was installed.
+     */
+    fun bubbleEnabled(context: Context): Boolean = sp(context).getBoolean("bubble_enabled", false)
+
+    fun setBubbleEnabled(context: Context, value: Boolean) =
+        sp(context).edit { putBoolean("bubble_enabled", value) }
+
     fun setBubblePosition(context: Context, x: Int, y: Int) =
         sp(context).edit {
             putInt("bubble_x", x)

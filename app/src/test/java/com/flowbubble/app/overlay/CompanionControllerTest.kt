@@ -270,6 +270,44 @@ class CompanionControllerTest {
     }
 
     @Test
+    fun resting_for_two_minutes_drifts_to_the_sleepy_face() {
+        controller.update(1_000L)
+        controller.update(1_000L + CompanionTiming.RestMs - 1L)
+        assertEquals(CompanionMood.Neutral, controller.moodAt(1_000L + CompanionTiming.RestMs - 1L))
+        controller.update(1_000L + CompanionTiming.RestMs + 1L)
+        assertEquals(CompanionMood.Sleepy, controller.moodAt(1_000L + CompanionTiming.RestMs + 1L))
+        assertEquals(SpritePose.Sleepy, CompanionLook.spritePose(CompanionState.Idle, CompanionMood.Sleepy))
+    }
+
+    @Test
+    fun working_again_wakes_the_resting_face() {
+        controller.update(1_000L)
+        controller.update(1_000L + CompanionTiming.RestMs + 1L)
+        assertEquals(CompanionMood.Sleepy, controller.moodAt(1_000L + CompanionTiming.RestMs + 1L))
+        controller.setState(CompanionState.Thinking, 1_000L + CompanionTiming.RestMs + 2L)
+        controller.update(1_000L + CompanionTiming.RestMs + 2L)
+        assertEquals(CompanionMood.Neutral, controller.moodAt(1_000L + CompanionTiming.RestMs + 2L))
+        controller.setState(CompanionState.Idle, 1_000L + CompanionTiming.RestMs + 3L)
+        controller.update(1_000L + CompanionTiming.RestMs + 3L)
+        assertEquals(CompanionMood.Neutral, controller.moodAt(1_000L + CompanionTiming.RestMs + 3L))
+        controller.update(1_000L + 2 * CompanionTiming.RestMs + 3L)
+        assertEquals(CompanionMood.Sleepy, controller.moodAt(1_000L + 2 * CompanionTiming.RestMs + 3L))
+    }
+
+    @Test
+    fun a_success_flash_beats_the_resting_face() {
+        controller.update(1_000L)
+        controller.update(1_000L + CompanionTiming.RestMs + 1L)
+        assertEquals(CompanionMood.Sleepy, controller.moodAt(1_000L + CompanionTiming.RestMs + 1L))
+        val rested = capture(controller.update(1_000L + CompanionTiming.RestMs + 1L))
+        controller.poke(1_000L + CompanionTiming.RestMs + 2L, CompanionMood.Happy)
+        assertEquals(CompanionMood.Happy, controller.moodAt(1_000L + CompanionTiming.RestMs + 3L))
+        val flashed = capture(controller.update(1_000L + CompanionTiming.RestMs + 3L))
+        assertEquals(SpritePose.Happy, CompanionLook.spritePose(CompanionState.Idle, CompanionMood.Happy))
+        assertNotEquals(rested.tint, flashed.tint)
+    }
+
+    @Test
     fun no_state_mood_stage_or_level_can_push_a_channel_out_of_range() {
         for (pose in CompanionState.values()) {
             for (mood in CompanionMood.values()) {
