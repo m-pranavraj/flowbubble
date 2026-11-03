@@ -75,6 +75,8 @@ Pull requests and `main` run `.github/workflows/ci.yml`: JDK 21, Android 35 SDK,
 
 Release signing stays out of git: `keystore/` and `keystore.properties` are gitignored. Without them the release build still compiles and the artifact is named `…-release-unsigned.apk` so it can never be mistaken for a deliverable. [docs/RELEASE.md](docs/RELEASE.md) covers the branch flow, keystore setup, CI secrets, and how to switch a device between debug and release channels.
 
+The current build is [Your Bubble v1.2.0](https://github.com/m-pranavraj/flowbubble/releases/tag/v1.2.0), published with `YourBubble-1.2.0-release.apk` signed locally by the release key and verified with `apksigner` before upload. Because CI has no signing secrets yet, the tag workflow builds and archives the APK but publishes nothing; the release is created from the workstation, as `docs/RELEASE.md` describes.
+
 ## First-run setup
 
 Open Your Bubble and work through the Setup tab. Each permission is requested through Android's own screen.

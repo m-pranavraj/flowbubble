@@ -31,6 +31,7 @@ transcript.
 | Debug-only source | 1 file — `app/src/debug/java/com/flowbubble/app/DebugSimulateReceiver.kt`, guarded by `BuildConfig.DEBUG` and absent from the release APK |
 | Manifest permissions requested | 13 `uses-permission` entries (12 `android.permission.*` plus `com.android.alarm.permission.SET_ALARM`) |
 | Artifacts | `YourBubble-1.2.0-release.apk` (102,868,227 bytes, V2-signed), `YourBubble-1.2.0-debug.apk` (107,001,209 bytes) |
+| Released | [v1.2.0 on GitHub Releases](https://github.com/m-pranavraj/flowbubble/releases/tag/v1.2.0), with the same APK bytes and the brand icon attached. That exact artifact is what is installed on the test device, and `scripts/release-check.mjs` passes 6/6 against it |
 | Instrumented tests | **none.** There is no `app/src/androidTest`, and no Robolectric. Nothing here is verified inside a runtime by the test suite. |
 
 ---

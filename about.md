@@ -23,7 +23,7 @@ above it; where the two disagree about what a feature costs, feature.md is the o
 | Service-level permissions | 3, all Android-enforced and user-granted outside the manifest: `BIND_ACCESSIBILITY_SERVICE`, `BIND_NOTIFICATION_LISTENER_SERVICE`, `BIND_QUICK_SETTINGS_TILE` |
 | Third-party libraries | 12 plus the Compose BOM — Compose UI/foundation/material3, activity, core-ktx, lifecycle, coroutines, `androidx.security:security-crypto`, ML Kit text-recognition, ML Kit GenAI speech-recognition, and `com.google.ai.edge.litertlm:litertlm-android:0.16.1` for on-device inference. JUnit is the only test dependency; no DI, no database, no networking or image library |
 | Release artifact | `YourBubble-1.2.0-release.apk`, V2-signed with the Your Bubble key. It is 102,868,227 bytes (~103 MB), up from 52,233,764 bytes (`FlowBubble-1.0.1-release.apk`) in 1.0.1, and the difference is native code: 88 MB of it is `.so` files. `libmlkit_google_ocr_pipeline.so` ships for all four ABIs; `liblitertlm_jni.so` only for arm64-v8a and x86_64 (21.5 MB and 25.6 MB), so a 32-bit phone carries the OCR runtime but not on-device inference. No model file is inside the APK |
-| Distribution | GitHub Releases only. Not a Play listing — Play restricts general-purpose automation through the Accessibility API |
+| Distribution | [GitHub Releases](https://github.com/m-pranavraj/flowbubble/releases) only — v1.0.0, v1.0.1 and v1.2.0 are published. Not a Play listing — Play restricts general-purpose automation through the Accessibility API |
 
 ## 2. What is actually there
 
@@ -300,8 +300,12 @@ guards. Full proof ledger in [feature.md](feature.md) §6; the shape of it here.
 4. **No instrumentation tests.** `app/src/androidTest` does not exist. All tests are JVM tests on pure
    logic; every line that touches `AccessibilityNodeInfo`, a window or a system service is proven only
    end-to-end by the benchmark.
-5. **The release channel was checked, not driven.** It cannot execute a spoken command on a release
-   build without a real microphone working.
+5. **The release channel was checked, not driven.** `scripts/release-check.mjs` passes 6/6 against the
+   shipped APK — it installs, binds accessibility, turns the bubble on through the app's own Setup
+   screen and draws over the launcher. It cannot execute a spoken command on a release build, because a
+   release build has no debug receiver and this image has no working recognizer, so what is proven about
+   the shipping artifact is that it installs, binds and draws — not that it does anything with a voice
+   command.
 6. **The continuous watcher has never been proven on a real screen sequence.** `ScreenSession` and
    `LiveScreenModel` are unit-tested on synthetic frames and diffs; the pointer grammar ("the blue
    one") resolving against a live app has not been driven end to end.
