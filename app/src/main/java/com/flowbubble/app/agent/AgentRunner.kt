@@ -380,6 +380,18 @@ class AgentRunner(
                 val decision: LoopDecision = if (nextStep < plan.steps.size) {
                     val step = plan.steps[nextStep++]
                     LoopDecision.Act(step.action, step.description)
+                } else if (currentGoal == null) {
+                    // Nothing observable to wait for, so the planned steps *were* the task and their
+                    // evidence is the verdict. Asking the loop to decide here hands it a placeholder
+                    // goal it can never satisfy, which reported a finished chain as a failure.
+                    return AgentOutcome.Completed(
+                        if (notes.isEmpty()) {
+                            "Finished ${plan.steps.size} step${if (plan.steps.size == 1) "" else "s"}."
+                        } else {
+                            notes.joinToString("\n\n")
+                        },
+                        trace(OutcomeKind.COMPLETED, "")
+                    )
                 } else if (plan.source == PlanSource.AI && aiConsults < MAX_AI_CONSULTS &&
                     LlmClient.isConfigured(context, AiRole.Plan)
                 ) {
