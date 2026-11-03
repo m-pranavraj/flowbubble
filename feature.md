@@ -203,6 +203,16 @@ and Devanagari marks still match what the user said.
 dispatched, and Android accepts a gesture before the app reacts, so a gesture is only claimed as done
 when the screen actually changed.
 
+**TESTED** — How that focused field is found, since the obvious way is wrong. Compose text fields do not
+show up as a node the accessibility tree will hand over as "the input", so `focusedEditable()` used to
+take the first editable node it met — which could be a password box, and on a login screen it was.
+`access/FocusedFieldFinder.kt` now decides from the candidate list: the focused non-password field, or the
+*only* unfocused non-password field, or nothing. Two rules it is designed around, both tested: a focused
+password field **stops** the search rather than falling through to the next field, and two unfocused
+candidates return null instead of a coin flip — typing into a field nobody selected is worse than saying
+"tap the field first". 7 JVM cases pass. Nobody has watched it land in a focused Compose field on a
+device in this build yet, so the selection logic is TESTED and the on-device landing is proof owed.
+
 **DEVICE** — Generic in-app search with verification: it needs a visible field or a control labelled
 "search", waits for the field to actually appear after tapping a search control, and reports failure
 rather than typing into whatever happens to be focused. Also web search, and "search in <app>".
@@ -242,6 +252,29 @@ opens the composer with an E.164 number. **The user presses Send.**
 Android's torch callback; devices that accept without reporting get "requested", not "success"), media
 volume (`core/VolumeController.kt`; **one step per request** by default, `CommandParser.kt:64`), mute,
 set-to-percent, battery. Media key dispatch requires API 31 (`CommandExecutor.kt:1733` checks it).
+
+**TESTED** — The flashlight needed a permission the app never asked for. `CameraManager.setTorchMode`
+throws a security exception for a caller without `CAMERA`, and `TorchController` read that as
+"this device has no flashlight", so the command told every user their hardware was missing. `CAMERA` is
+now declared — with `<uses-feature android:name="android.hardware.camera" android:required="false">`, and
+for nothing but the torch: no capture, no image read, no image stored, and the Setup row says so in those
+words. `TorchController.State` gained `NO_PERMISSION`, checked *before* the camera service is consulted,
+and `CommandExecutor` turns it into a "setup needed" outcome with an **Open setup** action instead of a
+hardware complaint. `ACCESS_NOTIFICATION_POLICY` was missing for the same reason and is now declared, so
+the app actually appears in Android's Do Not Disturb access list. Both are verified as present in the
+built APK by the release gate, not just in the source file.
+
+**TESTED** — Two more ways the Setup screen lied, both fixed in `core/Permissions.kt`. Accessibility was
+reported as granted whenever the system switch was on; Android can hold the switch on with the service
+not bound, or with it parked under `Crashed services`, and then every command the user tries does nothing.
+`PermissionState` now carries `accessibilityBound` separately, read from the service's own liveness, and
+`coreReady` requires both — so the header counts "N of 9 permissions on" over the nine rows the Setup
+screen actually asks for, against what works rather than what is switched on.
+And a settings screen that refuses to open no longer takes the tap down with it: OEM skins are known to
+throw on `Settings.ACTION_*` intents, `Permissions.launch` catches it and falls back to the app's own
+details page, so the user lands somewhere they can grant the permission instead of watching the app die.
+The fallback path is unit-tested; a stock emulator has no misbehaving settings screen, so the crash itself
+is prevented rather than observed.
 
 **DEVICE** — Do Not Disturb with an optional duration, reverted automatically even if the app restarts
 or the device reboots (a stored deadline is re-armed on start).
@@ -334,6 +367,37 @@ lose tomorrow's run.
 
 **DEVICE** — `BOOT_COMPLETED` re-arms the plan after a reboot, and `MainActivity.onResume` re-arms after
 any rule edit.
+
+**DEVICE** — and the reboot now brings the *bubble* back, not only the alarm. This is the part that made
+the sentence "Automations survive a reboot" true rather than nearly true: a time rule that wakes into a
+phone with no bubble is stopped by the off switch and records nothing. `core/Prefs.kt` remembers the last
+thing the user did with the switch, so `service/BootRestore.kt` can tell "I turned it off" from "the phone
+restarted", and `AutomationReceiver.afterReboot` relaunches only when the switch was on, the overlay
+permission is still granted, **and** a rule is armed — a user with no automations gets no new background
+process on every boot. Watched end to end on the installed release APK with a rule created through the UI
+("Reboot proof", every day at 07:30, one step `set timer for ten minutes`):
+
+```
+pre-reboot   OverlayService running, RTC_WAKEUP armed for 2026-11-04 07:30
+adb reboot   /proc/uptime = 54.14, sys.boot_completed=1 at ~36 s
+22:14:21     uc_send_user_broadcast: [0,android.intent.action.BOOT_COMPLETED]
+22:15:00     ActivityManager: Background started FGS: Allowed
+               [callingPackage: com.flowbubble.app; …
+                tempAllowListReason:<… android.intent.action.BOOT_COMPLETED/u0,
+                reasonCode:BOOT_COMPLETED,callingUid:1000>]
+22:15:02     am_foreground_service_start: [0,com.flowbubble.app/.service.OverlayService,1,ACTIVITY_STARTER]
+post-reboot  ServiceRecord{… u0 com.flowbubble.app/.service.OverlayService c:com.flowbubble.app}
+             isForeground=true foregroundId=101
+             rule still listed, same name/time/step; no AndroidRuntime crash
+```
+
+Screenshots: `verify/automation-pre-reboot.png`, `verify/automation-after-reboot.png` — the bubble is
+drawn in the same place on the home screen after the restart.
+
+**The restore is not instant, and a check that is too fast reads as a failure.** At uptime 54 s Android
+listed only the accessibility service; `OverlayService` appeared at about uptime 92 s, roughly 40 s after
+the broadcast was sent. Anything that verifies this — a script, a reviewer, a user who just powered their
+phone on — has to wait past that window before concluding the bubble did not come back.
 
 ## 7. The companion character
 
