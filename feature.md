@@ -26,8 +26,8 @@ transcript.
 | Version | `1.2.0`, versionCode `5` — `app/build.gradle.kts:27-28` |
 | Package id | `com.flowbubble.app` (unchanged on purpose; see "Name and identity" in the README) |
 | SDKs | minSdk 26, targetSdk 35, Java 17 bytecode |
-| Kotlin source shipped | 83 files, 26,618 lines under `app/src/main/java` |
-| Unit tests | 38 files, 6,643 lines, **529 tests, 0 failures, 0 skipped** (measured from `app/build/test-results/testDebugUnitTest/*.xml` after the 1.2.0 build) |
+| Kotlin source shipped | 83 files, 26,620 lines under `app/src/main/java` |
+| Unit tests | 38 files, 6,664 lines, **532 tests, 0 failures, 0 skipped** (measured from `app/build/test-results/testDebugUnitTest/*.xml`) |
 | Debug-only source | 1 file — `app/src/debug/java/com/flowbubble/app/DebugSimulateReceiver.kt`, guarded by `BuildConfig.DEBUG` and absent from the release APK |
 | Manifest permissions requested | 13 `uses-permission` entries (12 `android.permission.*` plus `com.android.alarm.permission.SET_ALARM`) |
 | Artifacts | `YourBubble-1.2.0-release.apk` (102,868,227 bytes), `YourBubble-1.2.0-debug.apk` (106,777,318 bytes) |
@@ -183,6 +183,21 @@ search for display". A deterministic local planner handles common chains; an opt
 propose `{open, tap, type, scroll, back, wait, ask}` JSON for unfamiliar screens, which is validated and
 run through the same gates. The progress panel always offers Stop.
 
+This shape regressed inside the 1.2.0 swarm and the frozen benchmark is what caught it, in two halves.
+First, the reactive loop matched the open-app pattern against the *whole sentence* before it split the
+chain, so "open chrome and search for weather" produced a goal meaning *wait until an app named
+"chrome and search for weather" is in the foreground*. `agent/LocalPlanner.kt` now reads a chain's finish
+line from its last clause, and returns no finish line at all when that clause has nothing observable to
+check. Second, "no finish line" was not respected: `agent/AgentRunner.kt` substituted a GENERIC
+placeholder goal, which has no branch in the decision function, so the chain fell through to *"I've done
+the steps I could plan for … and I can't see a way to check the rest"* and a failure verdict — Chrome was
+open, the search had run, and the panel said NOT DONE. With nothing observable to wait for, the planned
+steps are the task and the verdict comes from their evidence, which is the rule the linear path already
+used. Three unit tests pin the parsing half; the verdict half has no test because nothing in the JVM
+suite can reach a screen, so it is proven on device: `agent.chain` went FAIL → PASS on `emulator-5554`,
+and the 2026-11-01 run scored it as passed, which is what proves 1.2.0 broke it rather than that it
+always worked.
+
 **DEVICE** — Deterministic chat opening: "go to chat of Pranav", "WhatsApp Arjun". Contacts resolve as
 people with every saved number attached (mobile first); an exact name is never listed twice; several
 matches ask you to choose. Android has no "find this person's chat" API, so the app uses each app's
@@ -319,10 +334,12 @@ away, not a rendering change.
 **BUILT, NOT WIRED** — `BubbleView.setStage` exists (expression intensity, 1–4) but no caller changes
 the stage, so the character always performs at its default.
 
-**DEVICE** — The launcher icon is the same face (`tools/launcher-icon.py` →
-`ic_launcher_foreground.png`), kept inside the 66 dp adaptive safe zone. **Not fixed**:
-`ic_launcher_monochrome.xml` still draws the old vector face, so a themed launcher shows the previous
-character while the app itself shows the new one.
+**DEVICE** — The launcher icon is the same character (`tools/launcher-icon.py` →
+`drawable-nodpi/ic_launcher_foreground.png`, replacing the vector foreground that was deleted), kept
+inside the 66 dp adaptive safe zone. **Not finished**: the adaptive icon's third layer,
+`drawable/ic_launcher_monochrome.xml`, is still the hand-drawn vector of the same face from `eb8ebc3` —
+right character, different medium. Under a themed icon Android tints that layer and the app reads as a
+line drawing; everywhere else it is rendered art.
 
 ## 8. Models and providers
 
@@ -403,12 +420,12 @@ the enforcement point, and the ones with a user-visible consequence have device 
 
 | Tool | What it does | State |
 |---|---|---|
-| `scripts/benchmark.mjs` | Frozen 60-plus-task device execution benchmark; injects a phrase, waits for the trace entry, records the verdict | **Currently red.** The last recorded run (`verify/benchmark/latest.md`, 2026-11-03 05:46) is *0 passed, 0 skipped, 67 failed*, with every row reading "no new trace entries". That is a harness/injection failure, not 67 product defects — and it is being re-run rather than shipped silently. |
+| `scripts/benchmark.mjs` | Frozen 67-task device execution benchmark; injects a phrase, waits for the trace entry, records the verdict | **63 passed, 2 skipped, 2 failed** on the shipping build (`verify/benchmark/latest.md`, 2026-11-03 10:24). Both failures are the YouTube wall below, not product defects. An earlier run the same morning read *0 passed, 67 failed* with every row saying "no new trace entries" — a harness/injection failure, which is why a run like that was re-taken instead of published. |
 | `scripts/provider-check.mjs` | Proves the settings/profile/validation paths against a local OpenAI-compatible mock | Evidence in `verify/provider/` |
 | `scripts/mock-openai.mjs` | The local mock endpoint itself | used by the above |
 | `scripts/release-check.mjs` | Checks the release gate before tagging | part of the release flow |
 | `verify/*.png` | Device screenshots backing the DEVICE claims in this file | on disk |
-| `app/src/test/` | 529 JVM unit tests, 0 failures | green at build time |
+| `app/src/test/` | 532 JVM unit tests, 0 failures | green at build time |
 
 ## 12. What this build cannot do
 
@@ -419,6 +436,17 @@ the enforcement point, and the ones with a user-visible consequence have device 
 - No real microphone audio has ever been processed on this machine, and no real speech has ever been
   recognised. Everything downstream of a transcript is real; the transcript itself is injected.
 - No local model has run on a device, so keyless on-device AI is code and UI, not a demo.
+- **Two of the 67 benchmark tasks can never pass on this emulator, and the reason is YouTube.** The
+  image ships YouTube 19.17.42, which opens on a modal "Update your app" with no dismiss control — BACK
+  exits the app rather than closing it — and `dumpsys account` lists no Google account, so Play cannot
+  update it. There is genuinely no search field behind that dialog, so `search.youtube` and
+  `search.hinglish` fail on every run here (`verify/yt_update_modal.png`). The product's answer is the
+  honest one ("NOT DONE / I don't see a search field or a search button on this screen"), which is
+  exactly what the panel says. **A third row, `agent.youtube`, prints PASS and should not be read as
+  proof** — its own trace ends `Completed: open youtube and search for lofi / unverified`, so the
+  harness accepted a step the app itself declined to vouch for. Any score quoted from this device has a
+  floor of 2 skipped (no flash unit) and 2 device-blocked, making the real ceiling 65 of 67 — and 64 of
+  67 if a row that admits it is unverified is not counted as seen.
 - Booking, ticketing, and "buy anything in any app" are **not** implemented. The playbook layer that
   would carry that knowledge exists but is unwired (§9), no playbook has `provenOnDevice`, and there is
   no purchasing path. What exists today is the generic agent plus scroll-to-find plus tap-by-label,

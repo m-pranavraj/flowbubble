@@ -115,7 +115,7 @@ permissions and its history:
 
 ```bash
 adb uninstall com.flowbubble.app
-adb install -r YourBubble-1.1.0-release.apk
+adb install -r YourBubble-1.2.0-release.apk
 ```
 
 Then reopen the Setup screen and re-grant microphone, overlay, accessibility, notification
@@ -124,8 +124,12 @@ access, and screen capture. The debug transcript receiver does not exist in a re
 
 ## Icon
 
-`app/src/main/res/drawable/ic_launcher_background.xml`, `ic_launcher_foreground.xml` and
-`ic_launcher_monochrome.xml` feed the adaptive icon in `mipmap-anydpi-v26/`. Artwork stays
-inside the 66dp safe zone because launchers crop the 108dp canvas to a circle, a squircle,
-or a rounded square. The monochrome layer is what themed-icon launchers recolor.
+`app/src/main/res/drawable-nodpi/ic_launcher_foreground.png` is the rendered companion face, and it
+feeds the adaptive icon declared in `mipmap-anydpi-v26/ic_launcher.xml` together with
+`drawable/ic_launcher_background.xml` and `drawable/ic_launcher_monochrome.xml`. (The foreground used to
+be a vector; the PNG replaced it, and the two layers that are still vectors are the background and the
+monochrome.) Artwork stays inside the 66dp safe zone because launchers crop the 108dp canvas to a
+circle, a squircle, or a rounded square. The monochrome layer is what themed-icon launchers recolor, and
+it is still hand-drawn line art of the same face rather than a monochrome trace of the rendered one —
+under a themed icon the app therefore reads as a line drawing.
 `docs/assets/yourbubble-icon.png` is the raster brand asset used on the releases page.

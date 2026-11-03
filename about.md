@@ -16,8 +16,8 @@ above it; where the two disagree about what a feature costs, feature.md is the o
 | Version | 1.2.0 (`versionCode` 5), `app/build.gradle.kts:27` |
 | Languages / UI | Kotlin. Jetpack Compose for the app screens, hand-built `WindowManager` overlay views for the companion, transcript pill and panels |
 | SDK floor | `minSdk` 26, `compileSdk`/`targetSdk` 35 |
-| Source | 83 Kotlin files, 26,618 lines in `app/src/main`; 38 files, 6,643 lines in `app/src/test`; 1 file in `app/src/debug` |
-| Unit tests | 529 tests in 38 suites, 0 failures, 0 skipped — measured from the JUnit XML after the 1.2.0 build. There is no `app/src/androidTest` and no Robolectric, so nothing is verified inside an Android runtime by the suite |
+| Source | 83 Kotlin files, 26,620 lines in `app/src/main`; 38 files, 6,664 lines in `app/src/test`; 1 file in `app/src/debug` |
+| Unit tests | 532 tests in 38 suites, 0 failures, 0 skipped — measured from the JUnit XML. There is no `app/src/androidTest` and no Robolectric, so nothing is verified inside an Android runtime by the suite |
 | Command surface | 40 `Command` variants in `voice/CommandParser.kt:22`, each with a real handler in `commands/CommandExecutor.kt` |
 | Manifest permissions | 13 declared: `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `POST_NOTIFICATIONS`, `READ_CONTACTS`, `MODIFY_AUDIO_SETTINGS`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`, `VIBRATE`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, and `com.android.alarm.permission.SET_ALARM` for automation alarms. No camera, no storage, no location, no telephony, no SMS |
 | Service-level permissions | 3, all Android-enforced and user-granted outside the manifest: `BIND_ACCESSIBILITY_SERVICE`, `BIND_NOTIFICATION_LISTENER_SERVICE`, `BIND_QUICK_SETTINGS_TILE` |
@@ -289,14 +289,14 @@ guards. Full proof ledger in [feature.md](feature.md) §6; the shape of it here.
    29 / 31 / 33 matrix, no low-RAM device, no OEM skin (Xiaomi/Samsung kill background services
    differently), no tablet or fold. That matters more than it used to: the local model catalog is
    gated on RAM figures this emulator does not represent.
-3. **The recorded benchmark run is red, and red for a harness reason.** `verify/benchmark/latest.md`
-   (2026-11-03 05:46) reads **0 passed, 0 skipped, 67 failed**, and every single row says "no new trace
-   entries". Sixty-seven consecutive failures with an identical cause is not sixty-seven product defects;
-   it is the injection or the trace read failing for the whole run. It is re-run against the shipping
-   build, and a run like that must never be published as if it were a measurement. When a healthy run
-   does land, its own floor is **4 of 67 tasks permanently blocked on this image** (its YouTube opens on
-   an "Update your app" dialog with no search field) and **2 skipped** (no flash unit), so the real
-   denominator for any score quoted from this device is 61 of 65.
+3. **The benchmark score has a floor, and one run was red for a reason that was not the product.**
+   `verify/benchmark/latest.md` (2026-11-03 10:24, the shipping build) reads **63 passed, 2 skipped,
+   2 failed**. The two failures are the YouTube wall in `feature.md` §12 — this image ships a YouTube
+   that opens on an un-dismissable "Update your app" modal with no search field behind it, and no Google
+   account exists to update it. A third YouTube row prints PASS while its own trace says `unverified`, so
+   the honest ceiling here is 65 of 67, not 67. The same morning an earlier run read **0 passed, 67
+   failed** with every row saying "no new trace entries"; that was the harness's injection failing, not
+   the product, and it is why a run like that gets re-taken rather than published.
 4. **No instrumentation tests.** `app/src/androidTest` does not exist. All tests are JVM tests on pure
    logic; every line that touches `AccessibilityNodeInfo`, a window or a system service is proven only
    end-to-end by the benchmark.
@@ -308,6 +308,12 @@ guards. Full proof ledger in [feature.md](feature.md) §6; the shape of it here.
 7. **No local model has been run on this emulator.** The catalog, installer, size gates and RAM verdicts
    are tested; actual LiteRT-LM inference has not been executed on the test image, which is x86_64 with
    no GPU delegate and not the hardware these models are for.
+8. **Harness runs leave state on the device, and that state changes later runs.** `provider-check.mjs`
+   configures three AI profiles pointing at `http://10.0.2.2:8971/v1` and never removes them; between
+   harness runs nothing listens there, so every AI-touching path pays a connect timeout before falling
+   back locally. That is what made one spoken-task window expire on a task that was otherwise fine. A
+   benchmark number from this device is only comparable to another one taken with the same leftover
+   state, and nothing in the report says which state that was.
 
 ### 3.3 Engineering gaps
 
@@ -330,7 +336,15 @@ guards. Full proof ledger in [feature.md](feature.md) §6; the shape of it here.
 6. **The benchmark report does not identify the build under test.** `latest.md` records device, time and
    score, not the APK name, version or commit — so a report cannot be tied to the artifact it scored.
 7. **No failure taxonomy.** A device-blocked task and a product regression print the same `FAIL`, which
-   is how the YouTube wall was able to hide a real accessibility-readiness bug for a whole run.
+   is how the YouTube wall was able to hide a real accessibility-readiness bug for a whole run. The
+   1.2.0 run made the cost concrete: five red rows turned out to be three different things — one real
+   regression (a chain that reported NOT DONE after succeeding), rows blocked by an app this image
+   cannot run, and one row that was only slow because a dead mock AI endpoint was still configured on the
+   device. The regression got two fixes (`LocalPlanner.reactiveGoal` swallowing a whole chain into one
+   app name, and the reactive loop inventing an unsatisfiable finish line for a goal-less chain) and the
+   contaminant got cleared by hand; the surviving pair is the YouTube wall, so the final run is 63/2/2.
+   Telling them apart took a screenshot and a `dumpsys account` per row, which is exactly the work a
+   `blocked:` field on each task would do once, in code.
 8. **The UI-driving harnesses are fragile against this image.** `uiautomator dump` intermittently
    returns a null root or "could not get idle state", and a failed dump leaves the *previous* screen in
    the file it was writing, so `provider-check.mjs`, `benchmark.mjs` and `release-check.mjs` can act on
@@ -500,9 +514,8 @@ Grouped by the mechanism that makes them possible, with what each would actually
 
 ## 6. How the claims in this file were checked
 
-- **529 JVM unit tests, 0 failures, 0 skipped** across 38 suites on the current tree, measured from
-  `app/build/test-results/testDebugUnitTest/*.xml` after the 1.2.0 build rather than from a Gradle
-  summary line.
+- **532 JVM unit tests, 0 failures, 0 skipped** across 38 suites on the current tree, measured from
+  `app/build/test-results/testDebugUnitTest/*.xml` rather than from a Gradle summary line.
 - **Automations were followed end to end on device.** One rule created in the UI ("Movie night" style
   draft, step `open the clock app`) was read back out of `flowbubble_automations.xml` with
   `at=06:12, daily=true, windowMinutes=15`, seen armed in `dumpsys alarm` as
