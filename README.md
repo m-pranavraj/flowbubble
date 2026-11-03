@@ -75,7 +75,24 @@ Pull requests and `main` run `.github/workflows/ci.yml`: JDK 21, Android 35 SDK,
 
 Release signing stays out of git: `keystore/` and `keystore.properties` are gitignored. Without them the release build still compiles and the artifact is named `…-release-unsigned.apk` so it can never be mistaken for a deliverable. [docs/RELEASE.md](docs/RELEASE.md) covers the branch flow, keystore setup, CI secrets, and how to switch a device between debug and release channels.
 
-The current build is [Your Bubble v1.2.0](https://github.com/m-pranavraj/flowbubble/releases/tag/v1.2.0), published with `YourBubble-1.2.0-release.apk` signed locally by the release key and verified with `apksigner` before upload. Because CI has no signing secrets yet, the tag workflow builds and archives the APK but publishes nothing; the release is created from the workstation, as `docs/RELEASE.md` describes.
+The current build is [Your Bubble v1.2.1](https://github.com/m-pranavraj/flowbubble/releases/tag/v1.2.1), published with `YourBubble-1.2.1-release.apk` (91 MB, versionCode 6) signed locally by the release key with both the v1 and v2 schemes and verified with `apksigner` before upload. The repository is public, so the asset link works from a phone browser with no login — which v1.2.0 did not, and that is the whole reason a downloaded 1.2.0 came back as "App not installed". Because CI has no signing secrets yet, the tag workflow builds and archives the APK but publishes nothing; the release is created from the workstation, as `docs/RELEASE.md` describes.
+
+## Install on your phone
+
+Download `YourBubble-<version>-release.apk` from the [latest release](https://github.com/m-pranavraj/flowbubble/releases/latest) in the phone's own browser, open the downloaded file, and allow installs from that app when Android asks. Then follow the first-run setup below.
+
+If the phone says "App not installed", it is one of these — each was measured on this project's own artifact, not copied from a forum:
+
+| What actually happened | How to tell | Fix |
+| --- | --- | --- |
+| The release was on a private repo, so the download link answered **404** to a logged-out browser and the phone saved GitHub's login page under the name `…apk`. | The file is a few hundred kilobytes of HTML, and `file` reports HTML text, not a ZIP. | Publish the release so the asset is downloadable without a login, or download while signed in to the GitHub app. |
+| A debug build was already installed. Debug and release are signed with different keys, so Android refuses the replace and OEM skins show the flat "App not installed" instead of `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. | `adb install` on the same APK reports `signatures do not match previously installed version`. | Uninstall the debug build first. Your Bubble's data is on-device only, so nothing of yours is lost. |
+| The APK carried only the v2 signature. An installer that unzips and re-zips the file destroys the v2 block, and with no JAR signature underneath, the package manager has nothing to verify. | `apksigner verify --verbose --min-sdk-version 21` reports `v1 … false`. | v1.2.1 forces both schemes on. Do not re-pack the APK to send it; upload the file itself. |
+| The download stopped short. | The byte count is under the release's SHA-256-paired size, and `unzip -t` fails. | Re-download on a stable connection and check the hash published with the release. |
+| The source is not allowed, or Play Protect flagged an unknown publisher. | The prompt names the browser or file manager as blocked. | Allow "install unknown apps" for that one app, for this install. |
+| Not enough room. The APK is about 91 MB and unpacking needs a few hundred MB free. | The installer stays silent and returns to the launcher. | Free space and retry. |
+
+`adb install -r app/build/outputs/apk/release/YourBubble-<version>-release.apk` reports the real reason in one line, which is worth running if the phone stays vague.
 
 ## First-run setup
 

@@ -1,4 +1,0 @@
-{"method":"POST","path":"/v1/chat/completions","auth":"","agent":"YourBubble/1.1.0","contentType":"application/json","model":"mock-default","temperature":0.2,"messages":2,"userCharacters":4,"at":"2026-11-02T23:23:39.674Z"}
-{"method":"POST","path":"/v1/chat/completions","auth":"Bearer sk-device-proof-9137","agent":"YourBubble/1.1.0","contentType":"application/json","model":"mock-dictation","temperature":0.2,"messages":2,"userCharacters":4,"at":"2026-11-02T23:25:02.932Z"}
-{"method":"POST","path":"/v1/chat/completions","auth":"Bearer sk-device-proof-9137","agent":"YourBubble/1.1.0","contentType":"application/json","model":"mock-dictation","temperature":0.2,"messages":2,"userCharacters":30,"at":"2026-11-02T23:27:01.493Z"}
-{"method":"POST","path":"/v1/chat/completions","auth":"Bearer sk-leak-check-4471","agent":"YourBubble/1.1.0","contentType":"application/json","model":"reject-me","temperature":0.2,"messages":2,"userCharacters":4,"at":"2026-11-02T23:32:03.371Z"}

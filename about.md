@@ -1,7 +1,7 @@
 # Your Bubble — the whole project, end to end
 
 What exists today, what does not, what is worth improving in what exists, and what could be built
-next. Everything here is stated against the code at `1.2.0`, not against a plan. Each claim names a
+next. Everything here is stated against the code at `1.2.1`, not against a plan. Each claim names a
 file so it can be checked rather than trusted.
 
 [feature.md](feature.md) is the per-feature proof ledger — it tags every capability as seen on a device,
@@ -13,17 +13,17 @@ above it; where the two disagree about what a feature costs, feature.md is the o
 | | |
 | --- | --- |
 | Name | **Your Bubble**. It shipped as FlowBubble through 1.0.1, the last tag on this repository; the rename landed after it and 1.2.0 is the first release under the new name. `applicationId` stays `com.flowbubble.app` on purpose, because changing it would make Android treat the app as a different product and drop every permission a user already granted. See "Name and identity" in `README.md` |
-| Version | 1.2.0 (`versionCode` 5), `app/build.gradle.kts:27` |
+| Version | 1.2.1 (`versionCode` 6), `app/build.gradle.kts:27-28` |
 | Languages / UI | Kotlin. Jetpack Compose for the app screens, hand-built `WindowManager` overlay views for the companion, transcript pill and panels |
 | SDK floor | `minSdk` 26, `compileSdk`/`targetSdk` 35 |
-| Source | 83 Kotlin files, 26,620 lines in `app/src/main`; 38 files, 6,664 lines in `app/src/test`; 1 file in `app/src/debug` |
-| Unit tests | 532 tests in 38 suites, 0 failures, 0 skipped — measured from the JUnit XML. There is no `app/src/androidTest` and no Robolectric, so nothing is verified inside an Android runtime by the suite |
+| Source | 85 Kotlin files, 26,899 lines in `app/src/main`; 41 files, 6,854 lines in `app/src/test`; 1 file in `app/src/debug` |
+| Unit tests | 549 tests in 41 suites, 0 failures, 0 skipped — measured from the JUnit XML. There is no `app/src/androidTest` and no Robolectric, so nothing is verified inside an Android runtime by the suite |
 | Command surface | 40 `Command` variants in `voice/CommandParser.kt:22`, each with a real handler in `commands/CommandExecutor.kt` |
-| Manifest permissions | 13 declared: `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `POST_NOTIFICATIONS`, `READ_CONTACTS`, `MODIFY_AUDIO_SETTINGS`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`, `VIBRATE`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, and `com.android.alarm.permission.SET_ALARM` for automation alarms. No camera, no storage, no location, no telephony, no SMS |
+| Manifest permissions | 15 declared: `RECORD_AUDIO`, `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `POST_NOTIFICATIONS`, `READ_CONTACTS`, `MODIFY_AUDIO_SETTINGS`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`, `VIBRATE`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `CAMERA`, `ACCESS_NOTIFICATION_POLICY`, and `com.android.alarm.permission.SET_ALARM` for automation alarms. `CAMERA` is there because Android refuses `setTorchMode` to a caller that does not hold it — without it the app told users their phone had no flashlight — and it is declared with `<uses-feature android:required="false">` and used for nothing else: no capture, no image is ever read or stored. No storage, no location, no telephony, no SMS |
 | Service-level permissions | 3, all Android-enforced and user-granted outside the manifest: `BIND_ACCESSIBILITY_SERVICE`, `BIND_NOTIFICATION_LISTENER_SERVICE`, `BIND_QUICK_SETTINGS_TILE` |
 | Third-party libraries | 12 plus the Compose BOM — Compose UI/foundation/material3, activity, core-ktx, lifecycle, coroutines, `androidx.security:security-crypto`, ML Kit text-recognition, ML Kit GenAI speech-recognition, and `com.google.ai.edge.litertlm:litertlm-android:0.16.1` for on-device inference. JUnit is the only test dependency; no DI, no database, no networking or image library |
-| Release artifact | `YourBubble-1.2.0-release.apk`, V2-signed with the Your Bubble key. It is 102,868,227 bytes (~103 MB), up from 52,233,764 bytes (`FlowBubble-1.0.1-release.apk`) in 1.0.1, and the difference is native code: 88 MB of it is `.so` files. `libmlkit_google_ocr_pipeline.so` ships for all four ABIs; `liblitertlm_jni.so` only for arm64-v8a and x86_64 (21.5 MB and 25.6 MB), so a 32-bit phone carries the OCR runtime but not on-device inference. No model file is inside the APK |
-| Distribution | [GitHub Releases](https://github.com/m-pranavraj/flowbubble/releases) only — v1.0.0, v1.0.1 and v1.2.0 are published. Not a Play listing — Play restricts general-purpose automation through the Accessibility API |
+| Release artifact | `YourBubble-1.2.1-release.apk`, signed with **both** the v1 (JAR) and v2 schemes using the Your Bubble key. It is 91,330,768 bytes (~91 MB), down from 102,868,227 bytes in 1.2.0 — the 11 MB is the 32-bit x86 ABI, which served no real phone and only retired emulator images. 76,679,912 bytes of it is `.so` files: `libmlkit_google_ocr_pipeline.so` ships for all three ABIs (arm64-v8a 11.1 MB, x86_64 11.6 MB, armeabi-v7a 6.8 MB); `liblitertlm_jni.so` only for arm64-v8a and x86_64 (21.5 MB and 25.6 MB), so a 32-bit phone carries the OCR runtime but not on-device inference. No model file is inside the APK |
+| Distribution | [GitHub Releases](https://github.com/m-pranavraj/flowbubble/releases) only — v1.0.0, v1.0.1, v1.2.0 and v1.2.1 are published, and the repository is public so a phone can download an asset without a login. Not a Play listing — Play restricts general-purpose automation through the Accessibility API |
 
 ## 2. What is actually there
 

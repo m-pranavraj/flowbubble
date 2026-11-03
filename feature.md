@@ -23,15 +23,16 @@ transcript.
 
 | | |
 |---|---|
-| Version | `1.2.0`, versionCode `5` — `app/build.gradle.kts:27-28` |
+| Version | `1.2.1`, versionCode `6` — `app/build.gradle.kts:27-28` |
 | Package id | `com.flowbubble.app` (unchanged on purpose; see "Name and identity" in the README) |
 | SDKs | minSdk 26, targetSdk 35, Java 17 bytecode |
-| Kotlin source shipped | 83 files, 26,620 lines under `app/src/main/java` |
-| Unit tests | 38 files, 6,664 lines, **532 tests, 0 failures, 0 skipped** (measured from `app/build/test-results/testDebugUnitTest/*.xml`) |
+| Kotlin source shipped | 85 files, 26,899 lines under `app/src/main/java` |
+| Unit tests | 41 files, 6,854 lines, **549 tests, 0 failures, 0 skipped** (measured from `app/build/test-results/testDebugUnitTest/*.xml`) |
 | Debug-only source | 1 file — `app/src/debug/java/com/flowbubble/app/DebugSimulateReceiver.kt`, guarded by `BuildConfig.DEBUG` and absent from the release APK |
-| Manifest permissions requested | 13 `uses-permission` entries (12 `android.permission.*` plus `com.android.alarm.permission.SET_ALARM`) |
-| Artifacts | `YourBubble-1.2.0-release.apk` (102,868,227 bytes, V2-signed), `YourBubble-1.2.0-debug.apk` (107,001,209 bytes) |
-| Released | [v1.2.0 on GitHub Releases](https://github.com/m-pranavraj/flowbubble/releases/tag/v1.2.0), with the same APK bytes and the brand icon attached. That exact artifact is what is installed on the test device, and `scripts/release-check.mjs` passes 6/6 against it |
+| Manifest permissions requested | 15 `uses-permission` entries (14 `android.permission.*` plus `com.android.alarm.permission.SET_ALARM`) |
+| Artifacts | `YourBubble-1.2.1-release.apk` (91,330,768 bytes, signed with **both** the v1 and v2 schemes), `YourBubble-1.2.1-debug.apk` |
+| ABIs | `arm64-v8a`, `armeabi-v7a`, `x86_64`. The 32-bit x86 ABI is gone: it only served retired emulator images and cost 11 MB of a download a phone has to fetch over the air. |
+| Released | [v1.2.1 on GitHub Releases](https://github.com/m-pranavraj/flowbubble/releases/tag/v1.2.1), with the same APK bytes and the brand icon attached. That exact artifact is what is installed on the test device, and `scripts/release-check.mjs` passes 14/14 against it — 8 checks on the file itself before the device is touched, 6 on the running release build. |
 | Instrumented tests | **none.** There is no `app/src/androidTest`, and no Robolectric. Nothing here is verified inside a runtime by the test suite. |
 
 ---
@@ -69,6 +70,28 @@ and everything else checks it; it is the reason the app can promise "nothing lis
 casing applied, inserted at the caret of the focused field. **The audio path is not verified** — this
 emulator image has no working speech recognizer language pack, so every transcript below was injected
 through the debug receiver. Everything after the transcript is real.
+
+**DEVICE** — The release build can actually reach the system recognizer. Android 11+ hides other apps'
+services from a targetSdk 30+ app unless it declares what it is looking for, and `SpeechRecognizer.isRecognitionAvailable()`
+answers from that filtered view. The manifest had `<queries>` entries for the assistant, TTS and the
+alarm-clock intents but not for `android.speech.RecognitionService`, so on every real phone the app
+asked Android for a microphone transcript and was told there was no recognizer on the device — the whole
+voice product dead on arrival, with no crash and no log. Holding the bubble on the installed release
+APK now produces this in the system server's own log:
+
+```
+I SpeechRecognitionManagerServiceImpl: Client 10218 has opened 1 sessions
+I ActivityManager: Start proc …:com.google.android.tts/… for service
+   {com.google.android.tts/…GoogleTTSRecognitionService}
+I RecognitionServiceImpl: RecognitionService#onStartListening
+I RecognitionServiceImpl: Trigger application overridden to com.flowbubble.app
+I NetworkSpeechRecognizer: Online recognizer - start listening
+I SodaSpeechRecognizer: Offline recognizer - start listening
+```
+
+What is still not proven, and is not proven anywhere in this file: that real spoken audio comes back as
+text on this machine. The recognizer now opens the session and starts listening; the emulator guest has
+no microphone signal to transcribe.
 
 **TESTED** — Two engines behind `voice/TranscriptionEngine.kt`: on-device ML Kit text recognition, and
 the system recognizer, with an "Automatic" mode that picks one and says which it picked. Engine choice
@@ -429,9 +452,9 @@ the enforcement point, and the ones with a user-visible consequence have device 
 | `scripts/benchmark.mjs` | Frozen 67-task device execution benchmark; injects a phrase, waits for the trace entry, records the verdict | **63 passed, 2 skipped, 2 failed** on the shipping build (`verify/benchmark/latest.md`, 2026-11-03 10:24). Both failures are the YouTube wall below, not product defects. An earlier run the same morning read *0 passed, 67 failed* with every row saying "no new trace entries" — a harness/injection failure, which is why a run like that was re-taken instead of published. |
 | `scripts/provider-check.mjs` | Proves the settings/profile/validation paths against a local OpenAI-compatible mock | Evidence in `verify/provider/` |
 | `scripts/mock-openai.mjs` | The local mock endpoint itself | used by the above |
-| `scripts/release-check.mjs` | Checks the release gate before tagging | **6/6 on the shipped 1.2.0 APK** — installs, has no debug receiver, binds accessibility, turns the bubble on through the app's own Setup screen, and shows the overlay window over the launcher (`verify/release_build_bubble.png`). It used to pin `versionName=1.0.1` in its own first check, so it failed every release after the one it was written for; it now reads the expected version out of `app/build.gradle.kts`. It also only *claimed* to bind accessibility — on a fresh install nothing was bound and the run failed for that reason. |
+| `scripts/release-check.mjs` | Checks the release gate before tagging | **14/14 on the shipped 1.2.1 APK** — 8 checks read the artifact on disk *before the device is touched* (signed, v1 **and** v2, carries arm64, carries no dead 32-bit x86, under 100 MB, declares the speech-recognition query, declares CAMERA and ACCESS_NOTIFICATION_POLICY, versionCode strictly above the published release), then 6 on the running release build: installs, has no debug receiver, binds accessibility, turns the bubble on through the app's own Setup screen, hosts the overlay window, and draws it while another app holds focus. A failing artifact check skips the device stage on purpose — a phone would have refused that build before it ever ran. Two measurement traps it used to fall into, both fixed: it pinned `versionName=1.0.1` in its own first check, so it failed every release after the one it was written for (it now reads the expected version out of `app/build.gradle.kts`); and it only *claimed* to bind accessibility, which a fresh install exposed. A third trap showed up while adding the v1 check — `apksigner verify` judges only the signature schemes that apply to the SDK range it is given, and by default takes that range from the APK's own `minSdkVersion`, so on a minSdk 26 build it answers `v1: false` for an APK whose JAR signature is present and intact. The check now asks twice, once at a range where a phone falls back to v1 and once at the build's own range for v2. |
 | `verify/*.png` | Device screenshots backing the DEVICE claims in this file | on disk |
-| `app/src/test/` | 532 JVM unit tests, 0 failures | green at build time |
+| `app/src/test/` | 549 JVM unit tests, 0 failures | green at build time |
 
 ## 12. What this build cannot do
 
@@ -457,6 +480,14 @@ the enforcement point, and the ones with a user-visible consequence have device 
   would carry that knowledge exists but is unwired (§9), no playbook has `provenOnDevice`, and there is
   no purchasing path. What exists today is the generic agent plus scroll-to-find plus tap-by-label,
   which can be *directed* at such a screen by a user but has not been proven there.
+- **The local-model download decision does not look at the CPU.** `core/LocalModelStore.kt:verdict()`
+  gates on RAM, free disk, licence and whether the file is already installed, and never on the ABI, so a
+  phone that reports enough RAM and room can be offered a GGUF built for a different architecture; the
+  download succeeds and the model then cannot load. Deliberately left unfixed in 1.2.1 rather than
+  half-fixed: a correct answer needs the runtime's own ABI list, and guessing it from
+  `Build.SUPPORTED_ABIS` would only move the failure somewhere less visible. Until then the honest
+  framing is that the *download* is offered on room and RAM, and the *load* is proven only when it
+  happens on the device.
 - No assistant role, no `VoiceInteractionService`, no custom IME.
 - R8/minification is not enabled, so release size is uncompressed-by-obfuscation size.
 - Threading debt that is real and not hidden: `service/OverlayService.kt:117` dispatches on
@@ -467,7 +498,9 @@ the enforcement point, and the ones with a user-visible consequence have device 
 
 ---
 
-*Every DEVICE line in this file was produced on `emulator-5554` with the 1.2.0 sources. The evidence is
-in `verify/` and in the run logs of the session that wrote it; where a claim rests on a log line or a
-`dumpsys` entry, the entry is quoted so it can be re-checked against the file rather than against this
-document's memory of it.*
+*Every DEVICE line in this file was produced on `emulator-5554`. Most were earned on the 1.2.0 sources
+and still describe code that 1.2.1 did not change; the release-channel lines — install, no debug
+receiver, accessibility bound, bubble on from Setup, overlay drawn over another app, recognizer session
+opened — were re-earned on the installed, signed 1.2.1 APK. The evidence is in `verify/` and in the run
+logs of the session that wrote it; where a claim rests on a log line or a `dumpsys` entry, the entry is
+quoted so it can be re-checked against the file rather than against this document's memory of it.*

@@ -101,10 +101,56 @@ Until those secrets exist, tag pushes still build and upload the artifact to the
 GitHub Release is published. Releases can always be published from a workstation instead:
 
 ```bash
-gh release create v1.2.0 \
-  app/build/outputs/apk/release/YourBubble-1.2.0-release.apk \
+gh release create v1.2.1 \
+  app/build/outputs/apk/release/YourBubble-1.2.1-release.apk \
   docs/assets/yourbubble-icon.png \
-  --title "Your Bubble v1.2.0" --notes "…"
+  --title "Your Bubble v1.2.1" --notes "…"
+```
+
+## Signature schemes, and why v1 is forced on
+
+AGP stops writing the JAR (v1) signature as soon as `minSdkVersion` passes 23, and this app is minSdk 26,
+so 1.0.0 through 1.2.0 shipped v2-only. That is fine for `adb install` and fine for Play, and it is not
+fine for a sideload: an OEM installer, a file manager, or a messaging app that unzips and re-zips the
+package destroys the v2 signature block, and with no JAR signature underneath the package manager is left
+with nothing to verify and reports the flat "App not installed". `app/build.gradle.kts` therefore sets
+both `enableV1Signing` and `enableV2Signing` on the release signing config.
+
+Measure it the way a phone does, not the way the defaults do. `apksigner verify` judges only the schemes
+that apply to the SDK range it is given, and takes that range from the APK's own `minSdkVersion` — on a
+minSdk 26 build it prints `Verified using v1 scheme (JAR signing): false` for an APK whose JAR signature
+is present and intact, because no platform it supports is obliged to look at it. Ask for the range where
+a phone would fall back to v1:
+
+```bash
+build-tools/apksigner verify --verbose --min-sdk-version 21 --max-sdk-version 23 YourBubble-1.2.1-release.apk
+# Verified using v1 scheme (JAR signing): true
+build-tools/apksigner verify --verbose YourBubble-1.2.1-release.apk
+# Verified using v2 scheme (APK Signature Scheme v2): true
+```
+
+`scripts/release-check.mjs` runs both, along with the rest of the artifact gate, before it touches a
+device.
+
+## Checking the download link the way a phone does
+
+A release asset on a **private** repository is not downloadable by an anonymous client. GitHub answers
+404, and a phone browser does not show an error — it saves the login page under the name `…apk`, and the
+installer then says "App not installed" about a file that is HTML. Check from a logged-out context before
+announcing a link:
+
+```bash
+curl -sSI -o /dev/null -w '%{http_code}\n' \
+  "$(gh api repos/m-pranavraj/flowbubble/releases/latest --jq '.assets[].browser_download_url' | head -1)"
+# want: 200 — that URL is exactly what a phone browser asks for
+gh api repos/m-pranavraj/flowbubble --jq '.private'   # want: false
+```
+
+Then confirm the bytes are the bytes you built — a download that stops early is the same "App not
+installed" with a different cause:
+
+```bash
+sha256sum app/build/outputs/apk/release/YourBubble-1.2.1-release.apk
 ```
 
 ## Installing a release build
