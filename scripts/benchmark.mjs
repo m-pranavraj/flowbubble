@@ -292,7 +292,9 @@ function awaitAccessibilityEvents(attempts = 3) {
 function grantPrerequisites() {
   // A fresh install has no runtime grants at all, and every communication task would otherwise fail
   // for the same reason: Your Bubble correctly reports the missing permission instead of guessing.
-  for (const permission of ['RECORD_AUDIO', 'POST_NOTIFICATIONS', 'READ_CONTACTS']) {
+  // CAMERA belongs here from 1.2.1: the release manifest now declares the flash feature, so Android
+  // gates setTorchMode behind a real grant and the app answers "setup needed" without one.
+  for (const permission of ['RECORD_AUDIO', 'POST_NOTIFICATIONS', 'READ_CONTACTS', 'CAMERA']) {
     shell(`pm grant ${PKG} android.permission.${permission}`, { allowFail: true });
   }
   shell(`appops set ${PKG} SYSTEM_ALERT_WINDOW allow`, { allowFail: true });
@@ -804,10 +806,36 @@ function selectTasks() {
   return chosen;
 }
 
+/*
+ * Phrases are injected through a receiver that only exists in app/src/debug/AndroidManifest.xml, so a
+ * device holding a release build answers nothing and every task fails the same way. A run has to say
+ * which build it drove, and a release build has to be refused before the 67 tasks rather than after.
+ */
+function installedBuild() {
+  const info = shell('dumpsys package ' + PKG, { allowFail: true, timeout: 20000 });
+  return {
+    apk: APK.split('/').pop(),
+    version: info.match(/versionName=(\S+)/)?.[1] ?? 'unknown',
+    debuggable: info.includes('DEBUGGABLE')
+  };
+}
+
 function installAndPrepare() {
   if (flag('install')) {
     if (!existsSync(APK)) throw new Error(`APK not found: ${APK}`);
     adb(['install', '-r', APK], { timeout: 180000 });
+  }
+  /*
+   * Checked before the rebinds, not after: readiness itself is probed through the debug receiver, so a
+   * release install would fail later with a message blaming accessibility while the real reason is that
+   * the build cannot be spoken to.
+   */
+  const build = installedBuild();
+  if (!build.debuggable) {
+    throw new Error(
+      `installed build ${build.version} is not debuggable, so it has no debug receiver and cannot be ` +
+      `spoken to; run this against a debug APK (--install)`
+    );
   }
   shell(`am force-stop ${PKG}`, { allowFail: true });
   grantPrerequisites();
@@ -823,7 +851,7 @@ function installAndPrepare() {
   }
   shell('input keyevent KEYCODE_HOME', { allowFail: true });
   sleep(900);
-  return { accessibility: true, overlay: true, focus: focus() };
+  return { accessibility: true, overlay: true, focus: focus(), build };
 }
 
 function main() {
@@ -835,8 +863,10 @@ function main() {
 
   const chosen = selectTasks();
   const readiness = installAndPrepare();
+  const build = readiness.build;
   mkdirSync(OUT, { recursive: true });
   console.log(`device ${DEVICE}  accessibility=${readiness.accessibility}  bubble=${readiness.overlay}  tasks=${chosen.length}`);
+  console.log(`build ${build.version}  from ${build.apk}`);
 
   const results = [];
   for (const task of chosen) {
@@ -866,10 +896,13 @@ function main() {
   console.log(`\n${passed} passed, ${skipped} skipped, ${failed} failed`);
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const partial = chosen.length !== tasks.length;
   const lines = [
     `# Your Bubble execution benchmark`,
     ``,
     `- device: ${DEVICE}`,
+    `- build: ${build.version} (from ${build.apk})`,
+    `- scope: ${partial ? `${chosen.length} of ${tasks.length} tasks (subset run)` : `all ${tasks.length} tasks`}`,
     `- run: ${new Date().toString()}`,
     `- result: ${passed} passed, ${skipped} skipped, ${failed} failed`,
     ``,
@@ -882,9 +915,17 @@ function main() {
     ``
   ];
   writeFileSync(`${OUT}/report-${stamp}.md`, lines.join('\n'));
-  writeFileSync(`${OUT}/latest.md`, lines.join('\n'));
-  writeFileSync(`${OUT}/latest.json`, JSON.stringify({ stamp, results }, null, 2));
-  console.log(`report: ${OUT}/latest.md`);
+  /*
+   * A two-task subset is evidence about two tasks, and the docs quote `latest.md` as the score for the
+   * build, so a subset run writes its dated report and leaves `latest.md` holding the last full run.
+   */
+  if (partial) {
+    console.log(`subset run: ${chosen.length} of ${tasks.length} tasks — ${OUT}/latest.md left as the last full run`);
+  } else {
+    writeFileSync(`${OUT}/latest.md`, lines.join('\n'));
+    writeFileSync(`${OUT}/latest.json`, JSON.stringify({ stamp, build, results }, null, 2));
+  }
+  console.log(`report: ${OUT}/${partial ? `report-${stamp}.md` : 'latest.md'}`);
 
   if (failed > 0) process.exit(1);
 }

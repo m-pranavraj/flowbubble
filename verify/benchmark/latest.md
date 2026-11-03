@@ -1,7 +1,9 @@
 # Your Bubble execution benchmark
 
 - device: emulator-5554
-- run: Tue Nov 03 2026 10:24:43 GMT+0530 (India Standard Time)
+- build: 1.2.1 (from YourBubble-1.2.1-debug.apk)
+- scope: all 67 tasks
+- run: Tue Nov 03 2026 23:01:44 GMT+0530 (India Standard Time)
 - result: 63 passed, 2 skipped, 2 failed
 
 | task | phrase | verdict | observed | note |
@@ -67,7 +69,7 @@
 | comms.maps | navigate to chennai | PASS | Maps / Open "chennai" / awaiting user |  |
 | routine.save | save a routine called bench for open youtube | PASS | Routine / Saved bench / done |  |
 | routine.run | run routine bench | PASS | Routine / Ran bench / requested |  |
-| routine.list | list routines | PASS | Routine / Listed 1 routines / done |  |
+| routine.list | list routines | PASS | Routine / Listed 1 routines / done \| App / Opened YouTube / done |  |
 | routine.delete | delete routine bench | PASS | Routine / Delete bench / awaiting user |  |
 | follow.repeat | again | PASS | Battery / 100% / done |  |
 | follow.copy | copy that | PASS | Clipboard / Copied the last text / copied |  |

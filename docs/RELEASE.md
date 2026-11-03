@@ -153,6 +153,40 @@ installed" with a different cause:
 sha256sum app/build/outputs/apk/release/YourBubble-1.2.1-release.apk
 ```
 
+## Google Play
+
+Play takes an **AAB**, not the APK the releases page carries, and the two come off different Gradle
+tasks: `assembleRelease` writes `YourBubble-<versionName>-release.apk`, `bundleRelease` writes
+`app/build/outputs/bundle/release/app-release.aab`. The AAB's filename never contains the version, so the
+artifact is silent about what is inside it and only its build time says anything.
+
+Play keys an app on `applicationId` — `com.flowbubble.app` (`app/build.gradle.kts:24`), which is *not* the
+product name. A listing created under any other id can never receive this build.
+
+Confirm the AAB is the release before uploading it, because an old one is accepted silently:
+
+```bash
+stat -c '%y' app/build/outputs/bundle/release/app-release.aab
+git log --before="<that timestamp>" -1 --format='%h %s'          # the tree it was built from
+git show HEAD:app/build.gradle.kts | grep -E "version(Code|Name)" # what HEAD is now
+```
+
+On 3 Nov 2026 the only AAB on disk had been built at 23:36 on 2 Nov from `4979fc4` — versionCode 3,
+versionName 1.0.2 — while the release published on GitHub was v1.2.1 at versionCode 6. Uploading that
+file would have put a build three releases behind, Automations-free and reboot-breaking, in front of
+users on a listing that reads 1.2.1. `bundleRelease` has to be re-run for every release;
+`.github/workflows/release.yml` publishes the APK only, so nothing does it for you.
+
+Play signs with its own app signing key whatever upload key it is given, so a Play-installed copy and a
+sideloaded GitHub APK do not share a signature and cannot upgrade over each other — the same
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE` as the debug/release split above, and the same fix: uninstall first,
+which clears every permission grant. Which key a given listing actually signs with is set in
+*Testing → App signing*, so read it there rather than assuming.
+
+Play remains the secondary channel: the app drives other apps through the Accessibility API, which Play
+allows for assistive technology and restricts for general automation, so the listing needs the declared
+purpose to match what it does. See the distribution row in `about.md`.
+
 ## Installing a release build
 
 Release and debug builds are signed with different keys, so Android rejects one over the other. This is

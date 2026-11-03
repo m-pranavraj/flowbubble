@@ -433,6 +433,8 @@ The runner installs the current debug APK, re-enables accessibility, starts the 
 
 Before scoring anything it proves the connection is live: it changes the foreground app, asks the running accessibility service what it now sees, and requires a real package back. Android keeps a service whose process died in "Crashed services", where it stays listed as bound but delivers nothing, so a stale binding aborts the run instead of quietly failing every task.
 
+Every report names the build it drove — `versionName` and the APK the device was holding — and the run stops immediately if that install is not `DEBUGGABLE`, because a release build has no debug receiver and would answer all 67 phrases with silence. A `--only` subset writes a dated report and leaves `latest.md` holding the last full run, since the docs quote `latest.md` as the score for the build.
+
 ### Checking a release build
 
 A release APK has no debug receiver, so the benchmark cannot drive it. `scripts/release-check.mjs` verifies the shipped channel the way a user's device would: the installed version, that the release manifest carries no debug receiver, that accessibility binds without crashing, that the bubble turns on from the app's own Setup screen, and that Android reports the overlay window drawn while another app holds focus.

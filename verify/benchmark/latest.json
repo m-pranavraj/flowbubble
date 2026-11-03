@@ -1,5 +1,10 @@
 {
-  "stamp": "2026-11-03T04-54-43",
+  "stamp": "2026-11-03T17-31-44",
+  "build": {
+    "apk": "YourBubble-1.2.1-debug.apk",
+    "version": "1.2.1",
+    "debuggable": true
+  },
   "results": [
     {
       "id": "app.youtube",
@@ -616,7 +621,7 @@
       "group": "routines",
       "phrase": "list routines",
       "verdict": "PASS",
-      "observed": "Routine / Listed 1 routines / done",
+      "observed": "Routine / Listed 1 routines / done | App / Opened YouTube / done",
       "note": "",
       "focus": "",
       "volume": null

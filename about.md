@@ -221,7 +221,11 @@ guards. Full proof ledger in [feature.md](feature.md) §6; the shape of it here.
 
 - `scripts/benchmark.mjs` — 67 frozen spoken tasks against a real device, judged by the product's own
   history entries and foreground state. It refuses to score anything until it has proved the
-  accessibility connection is live.
+  accessibility connection is live, names the build it drove (`build: 1.2.1 (from
+  YourBubble-1.2.1-debug.apk)` in the header and `build` in `latest.json`), refuses to start against an
+  installed build that is not `DEBUGGABLE` — a release APK has no debug receiver, so every task would
+  fail on a phrase it can never hear — and a `--only` subset run no longer overwrites `latest.md`, which
+  the docs quote as the score for the build.
 - `scripts/release-check.mjs` — 6 checks that a release build works, because a release build has no
   debug receiver and the benchmark cannot drive it.
 - `scripts/provider-check.mjs` — drives the Settings screen through the real UI and reads back what a
@@ -290,19 +294,28 @@ guards. Full proof ledger in [feature.md](feature.md) §6; the shape of it here.
    differently), no tablet or fold. That matters more than it used to: the local model catalog is
    gated on RAM figures this emulator does not represent.
 3. **The benchmark score has a floor, and one run was red for a reason that was not the product.**
-   `verify/benchmark/latest.md` (2026-11-03 10:24, the shipping build) reads **63 passed, 2 skipped,
-   2 failed**. The two failures are the YouTube wall in `feature.md` §12 — this image ships a YouTube
-   that opens on an un-dismissable "Update your app" modal with no search field behind it, and no Google
-   account exists to update it. A third YouTube row prints PASS while its own trace says `unverified`, so
-   the honest ceiling here is 65 of 67, not 67. The same morning an earlier run read **0 passed, 67
-   failed** with every row saying "no new trace entries"; that was the harness's injection failing, not
-   the product, and it is why a run like that gets re-taken rather than published.
+   `verify/benchmark/latest.md` (2026-11-03 23:01, build **1.2.1** from `YourBubble-1.2.1-debug.apk`)
+   reads **63 passed, 2 skipped, 2 failed**, and every one of the 67 verdicts is identical to the run
+   that scored the build before it — re-running the suite across the 1.2.1 permission and reboot fixes
+   found no regression. The two failures are the YouTube wall in `feature.md` §12 — this image ships a
+   YouTube that opens on an un-dismissable "Update your app" modal with no search field behind it, and no
+   Google account exists to update it. A third YouTube row prints PASS while its own trace says
+   `unverified`, so the honest ceiling here is 65 of 67, not 67. The same morning an earlier run read
+   **0 passed, 67 failed** with every row saying "no new trace entries"; that was the harness driving a
+   build it could not speak to, and the report now names the build and refuses an undrivable one so that
+   a run like that cannot be mistaken for a product result. The two skips are the flashlight pair, and
+   they moved twice in one day: they printed FAIL for a run because 1.2.1 declares the camera feature and
+   Android therefore gates the flash behind a real grant the harness had never given — the app answered
+   "Flashlight needs Camera" rather than pretending — and the pair returned to SKIP once
+   `grantPrerequisites()` asked for `CAMERA` the way it already asks for the microphone.
 4. **No instrumentation tests.** `app/src/androidTest` does not exist. All tests are JVM tests on pure
    logic; every line that touches `AccessibilityNodeInfo`, a window or a system service is proven only
    end-to-end by the benchmark.
-5. **The release channel was checked, not driven.** `scripts/release-check.mjs` passes 6/6 against the
-   shipped APK — it installs, binds accessibility, turns the bubble on through the app's own Setup
-   screen and draws over the launcher. It cannot execute a spoken command on a release build, because a
+5. **The release channel was checked, not driven.** `scripts/release-check.mjs` passes **14/14** against
+   the shipped 1.2.1 APK — 8 checks on the artifact on disk before a device is touched, 6 on the release
+   build running here: it is installed, has no debug receiver, binds accessibility without crashing,
+   turns the bubble on through the app's own Setup screen, hosts the overlay window and draws it while the
+   launcher holds focus. It cannot execute a spoken command on a release build, because a
    release build has no debug receiver and this image has no working recognizer, so what is proven about
    the shipping artifact is that it installs, binds and draws — not that it does anything with a voice
    command.
@@ -337,8 +350,9 @@ guards. Full proof ledger in [feature.md](feature.md) §6; the shape of it here.
    provider. When a provider renames a model the app still offers the old id and only the **Test**
    button tells you; nothing asks the endpoint for its real `/models` list the way every other client
    does.
-6. **The benchmark report does not identify the build under test.** `latest.md` records device, time and
-   score, not the APK name, version or commit — so a report cannot be tied to the artifact it scored.
+6. **The report names the build but not the commit.** `latest.md` now carries `versionName` and the APK
+   filename it drove; the commit and a device fingerprint are still absent, so two runs of the same
+   version from different trees look identical.
 7. **No failure taxonomy.** A device-blocked task and a product regression print the same `FAIL`, which
    is how the YouTube wall was able to hide a real accessibility-readiness bug for a whole run. The
    1.2.0 run made the cost concrete: five red rows turned out to be three different things — one real
@@ -452,10 +466,12 @@ Ordered by value per hour. Sizes: S ≈ under a day, M ≈ a few days, L ≈ a w
 8. **Add instrumentation tests** (L) — `app/src/androidTest` for the accessibility bridge and overlay:
    assert text really lands in a field, a labelled tap hits the node, a gesture changes the screen.
    This is the layer the JVM suite cannot reach and the benchmark only samples.
-9. **Make the benchmark identify its build and classify failures** (M) — record APK name, `versionName`,
-   commit and device fingerprint in `latest.md`/`latest.json`, and add verdicts `PASS / FAIL /
-   BLOCKED(device) / SKIP(no hardware)` so a score is comparable across images and a device wall can
-   never mask a regression.
+9. **Make the benchmark classify failures** (M) — it now records the APK name and `versionName` it drove;
+   still to do: commit and device fingerprint in `latest.md`/`latest.json`, and verdicts
+   `PASS / FAIL / BLOCKED(device) / SKIP(no hardware)` so a score is comparable across images and a
+   device wall can never mask a regression. The torch pair is the current example of the gap: it moved
+   from `SKIP` to `FAIL` and back again on a permission grant, because "the hardware is not here" and
+   "the app waited for a grant" are both just `envFailure: true`.
 10. **Give the harness an opt-in task set per image** (S) — a `device:` tag on the YouTube and flashlight
     tasks so a run on a different device does not repeat "these 6 will fail everywhere".
 11. **Harden the LLM path** (M) — timeout, one bounded retry, a size cap already at 6,000 chars but no

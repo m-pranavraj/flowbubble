@@ -251,11 +251,22 @@ const publishedGradle = publishedTag
     ).toString('utf8')
   : '';
 const publishedCode = Number(publishedGradle.match(/versionCode\s*=\s*(\d+)/)?.[1] ?? 0);
+const publishedName = publishedGradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1] ?? '';
+/*
+ * Two different questions, and the gate has to answer both without contradicting itself. Before a
+ * release: does this build upgrade over the one users already have? After one: is the artifact on disk
+ * still the one that is published? A strict "greater than" alone made the gate unable to verify the very
+ * build it had just shipped — it failed its own release the moment that release went up, which is the
+ * same defect as pinning a version literal, only in the other direction.
+ */
+const sameRelease = publishedName !== '' && publishedName === expectedVersion;
 record(
-  `versionCode upgrades over ${publishedTag || 'the published release'}`,
-  publishedCode > 0 && expectedCode > publishedCode,
+  sameRelease
+    ? 'versionCode matches the release already published'
+    : `versionCode upgrades over ${publishedTag || 'the published release'}`,
+  publishedCode > 0 && (sameRelease ? expectedCode === publishedCode : expectedCode > publishedCode),
   publishedCode
-    ? `the release on GitHub is ${publishedCode}, this build is ${expectedCode}`
+    ? `GitHub has ${publishedName} at ${publishedCode}, this build is ${expectedVersion} at ${expectedCode}`
     : 'could not read the published release, so an upgrade install is unproven',
 );
 
