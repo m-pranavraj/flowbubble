@@ -4,20 +4,38 @@
  * the way a user's device would see it: bind accessibility, turn the bubble on through the app's own
  * Setup screen, and require the bubble window to be present over another app.
  */
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const ADB = 'C:/Users/Pranav/AppData/Local/Android/Sdk/platform-tools/adb.exe';
 const DEVICE = process.env.DEVICE || 'emulator-5554';
 const PKG = 'com.flowbubble.app';
+const SDK = 'C:/Users/Pranav/AppData/Local/Android/Sdk';
+
+const gradleFile = fileURLToPath(new URL('../app/build.gradle.kts', import.meta.url));
+const manifestFile = fileURLToPath(new URL('../app/src/main/AndroidManifest.xml', import.meta.url));
 
 /*
  * The version under test comes from the build file, not from a literal in this script. A pinned
  * version made the first check fail on every release after the one it was written for, which is the
  * same mistake as hard-coding a passing score: the gate reports on the world instead of testing it.
  */
-const gradle = readFileSync(new URL('../app/build.gradle.kts', import.meta.url), 'utf8');
+const gradle = readFileSync(gradleFile, 'utf8');
 const expectedVersion = gradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1] ?? '';
+const expectedCode = Number(gradle.match(/versionCode\s*=\s*(\d+)/)?.[1] ?? 0);
+
+const run = (command, args, { allowFail = false } = {}) => {
+  const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120000, maxBuffer: 32 * 1024 * 1024 });
+  if (out.error) {
+    if (allowFail) return '';
+    throw out.error;
+  }
+  return `${out.stdout ?? ''}${out.stderr ?? ''}`;
+};
+
+/* apksigner and friends are .bat files, which CreateProcess cannot start directly. */
+const bat = (path, args, opts) => run('cmd.exe', ['/d', '/s', '/c', path, ...args], opts);
 
 const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
 const sleep = (ms) => Atomics.wait(sleepBuffer, 0, 0, ms);
@@ -150,6 +168,103 @@ const record = (name, ok, detail = '') => {
   checks.push({ name, ok, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  ${detail}` : ''}`);
 };
+
+/*
+ * The artifact gate runs before the device does, because none of these faults show up as a slow test:
+ * a phone simply says "App not installed" and the user has no way to learn why. An unsigned build, a
+ * V2-only signature that re-packaging installers reject, a build with no arm64 code, a download big
+ * enough to break a phone browser, a versionCode that did not move — all of them are invisible to
+ * every check below this one, and all of them are measured here from the file that actually ships.
+ */
+const buildTools = (() => {
+  const roots = readdirSync(`${SDK}/build-tools`);
+  return `${SDK}/build-tools/${roots.sort().pop()}`;
+})();
+
+const releaseDir = fileURLToPath(new URL('../app/build/outputs/apk/release/', import.meta.url));
+const signedApk = `${releaseDir}YourBubble-${expectedVersion}-release.apk`;
+const unsignedApk = `${releaseDir}YourBubble-${expectedVersion}-release-unsigned.apk`;
+const apkPath = existsSync(signedApk) ? signedApk : existsSync(unsignedApk) ? unsignedApk : '';
+const apkBytes = apkPath ? statSync(apkPath).size : 0;
+
+const manifest = readFileSync(manifestFile, 'utf8');
+/*
+ * apksigner only judges the schemes that apply to the SDK range it is given, and by default it takes
+ * that range from the APK's own minSdkVersion. On a minSdk 26 build it answers "v1: false" for an APK
+ * whose JAR signature is present and intact, because no platform it supports is obliged to look at it.
+ * Asking twice — once at a range where a phone falls back to v1, once at the build's own range for v2 —
+ * measures the signatures instead of the defaults.
+ */
+const v1Report =
+  apkPath === signedApk
+    ? bat(`${buildTools}/apksigner.bat`, ['verify', '--verbose', '--min-sdk-version', '21', '--max-sdk-version', '23', apkPath])
+    : '';
+const v2Report = apkPath === signedApk ? bat(`${buildTools}/apksigner.bat`, ['verify', '--verbose', apkPath]) : '';
+const signReport = `${v1Report}\n${v2Report}`;
+const badging = apkPath ? run(`${buildTools}/aapt2.exe`, ['dump', 'badging', apkPath]) : '';
+const abis = badging.match(/native-code:\s*([^\r\n]*)/)?.[1]?.replace(/'/g, '').trim().split(/\s+/) ?? [];
+
+record(
+  'release artifact exists and is signed',
+  apkPath === signedApk,
+  apkPath ? (apkPath === unsignedApk ? 'the release build is UNSIGNED — no phone will install it' : '') : `no APK under ${releaseDir}`,
+);
+record(
+  'signed with both the v1 and v2 schemes',
+  /Verified using v1 scheme \(JAR signing\): true/.test(signReport) &&
+    /Verified using v2 scheme \(APK Signature Scheme v2\): true/.test(signReport),
+  `v1=${/v1 scheme \(JAR signing\): true/.test(signReport)} v2=${/v2 scheme \(APK Signature Scheme v2\): true/.test(signReport)} — v2-only APKs die when an installer re-packs the file`,
+);
+record('carries arm64 code for a real phone', abis.includes('arm64-v8a'), `native-code: ${abis.join(', ') || 'none'}`);
+record('carries no dead 32-bit x86 code', apkPath !== '' && !abis.includes('x86'), `native-code: ${abis.join(', ') || 'none'}`);
+record(
+  'small enough for a phone to fetch and unpack',
+  apkBytes > 0 && apkBytes < 100_000_000,
+  `${(apkBytes / 1e6).toFixed(1)} MB`,
+);
+record(
+  'a phone can see the speech recognizer',
+  manifest.includes('android.speech.RecognitionService'),
+  'without a <queries> entry, package visibility hides the recognizer service on targetSdk 30+ and isRecognitionAvailable() returns false',
+);
+record(
+  'declares the permissions its own commands need',
+  manifest.includes('android.permission.CAMERA') && manifest.includes('android.permission.ACCESS_NOTIFICATION_POLICY'),
+  'setTorchMode needs CAMERA; without ACCESS_NOTIFICATION_POLICY the app is not listed under Do Not Disturb access',
+);
+
+/*
+ * An install is only an upgrade if the number went up. Android refuses a same-version replace when the
+ * signing certificate differs, and a lower versionCode is a downgrade it refuses outright — either way
+ * the phone reports "App not installed" with no hint that the releases page is holding the newer build.
+ */
+const publishedTag = run('gh.exe', ['api', 'repos/m-pranavraj/flowbubble/releases/latest', '--jq', '.tag_name']).trim();
+const publishedGradle = publishedTag
+  ? Buffer.from(
+      run('gh.exe', [
+        'api',
+        `repos/m-pranavraj/flowbubble/contents/app/build.gradle.kts?ref=${publishedTag}`,
+        '--jq',
+        '.content',
+      ]).trim(),
+      'base64',
+    ).toString('utf8')
+  : '';
+const publishedCode = Number(publishedGradle.match(/versionCode\s*=\s*(\d+)/)?.[1] ?? 0);
+record(
+  `versionCode upgrades over ${publishedTag || 'the published release'}`,
+  publishedCode > 0 && expectedCode > publishedCode,
+  publishedCode
+    ? `the release on GitHub is ${publishedCode}, this build is ${expectedCode}`
+    : 'could not read the published release, so an upgrade install is unproven',
+);
+
+const blocked = checks.filter((c) => !c.ok);
+if (blocked.length) {
+  console.log(`\n${blocked.length}/${checks.length} artifact checks failed — the device stage is skipped, because a phone would refuse this build before it ever runs.`);
+  process.exit(1);
+}
+console.log(`\n${checks.length}/${checks.length} artifact checks passed\n`);
 
 const installed = shell('dumpsys package com.flowbubble.app', { allowFail: true });
 const installedVersion = installed.match(/versionName=(\S+)/)?.[1] ?? '';

@@ -24,8 +24,16 @@ android {
         applicationId = "com.flowbubble.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.2.0"
+        versionCode = 6
+        versionName = "1.2.1"
+
+        // One APK, because a person sideloading from a releases page cannot pick a per-device build.
+        // x86 (32-bit Intel) is the one ABI with no phone and no emulator left to run it, and it was
+        // carrying 11.5 MB of native code per library. x86_64 stays so the release channel can be
+        // verified on a local AVD instead of assumed.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     signingConfigs {
@@ -35,6 +43,12 @@ android {
                 storePassword = props.getProperty("storePassword")
                 keyAlias = props.getProperty("keyAlias")
                 keyPassword = props.getProperty("keyPassword")
+                // AGP drops v1 once minSdk passes 23, and a v2-only APK is fragile in exactly the
+                // places a sideload goes through: an OEM installer that unzips and re-zips the file
+                // destroys the v2 signature block, and with no JAR signature left the package manager
+                // reports the flat "App not installed". v1 costs a few seconds of build and survives.
+                enableV1Signing = true
+                enableV2Signing = true
             }
         }
     }
