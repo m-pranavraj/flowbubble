@@ -123,6 +123,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- Time triggers and boot only; the bubble's own switch gates every run, so nothing else is asked for. -->
+        <receiver
+            android:name=".service.AutomationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="com.flowbubble.app.action.AUTOMATIONS_RUN" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".access.FlowAccessibilityService"
             android:exported="true"

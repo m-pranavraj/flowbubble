@@ -179,13 +179,14 @@ private fun AppHeader(bubbleRunning: Boolean) {
                     }
                 },
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.1.sp
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = "A voice layer for Android",
                 style = MaterialTheme.typography.labelMedium,
-                letterSpacing = 2.2.sp,
+                letterSpacing = 0.7.sp,
                 color = Ink.Faint
             )
         }
@@ -202,6 +203,7 @@ private fun NavTabs(current: String, onNavigate: (String) -> Unit) {
     val tabs = listOf(
         "Home" to MainActivity.SCREEN_HOME,
         "Setup" to MainActivity.SCREEN_SETUP,
+        "Automations" to MainActivity.SCREEN_AUTOMATIONS,
         "Settings" to MainActivity.SCREEN_SETTINGS,
         "History" to MainActivity.SCREEN_HISTORY
     )

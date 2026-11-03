@@ -225,6 +225,27 @@ object CompanionLook {
         CompanionState.Idle -> if (mood == CompanionMood.Happy) CompanionTint.Success else CompanionTint.Calm
     }
 
+    /**
+     * Which rendered face the art layer shows for this state and expression.
+     *
+     * The four working states own the face because they are what the user is waiting on — a worried
+     * bubble must not look merely curious. Only the resting face is free to be coloured by mood, so a
+     * sleepy or startled companion still reads as itself while nothing is happening.
+     */
+    fun spritePose(state: CompanionState, mood: CompanionMood): SpritePose = when (state) {
+        CompanionState.Worried -> SpritePose.Worried
+        CompanionState.Listening -> SpritePose.Listening
+        CompanionState.Thinking -> SpritePose.Thinking
+        CompanionState.Happy -> SpritePose.Happy
+        CompanionState.Idle -> when (mood) {
+            CompanionMood.Sleepy -> SpritePose.Sleepy
+            CompanionMood.Surprised -> SpritePose.Surprised
+            CompanionMood.Curious -> SpritePose.Listening
+            CompanionMood.Happy -> SpritePose.Happy
+            CompanionMood.Neutral -> SpritePose.Idle
+        }
+    }
+
     /** Base lid openness before blink. 1 is a normal eye, above 1 is a startled wide eye. */
     fun eyeOpenBase(state: CompanionState, mood: CompanionMood, stage: Int): Float {
         val byState = when (state) {
@@ -412,6 +433,9 @@ object CompanionLook {
  */
 class CompanionFrame {
     var tint: CompanionTint = CompanionTint.Calm
+    /** What the art layer needs to pick a face; the scalars below are what the vector layer needs. */
+    var state: CompanionState = CompanionState.Idle
+    var mood: CompanionMood = CompanionMood.Neutral
     var bob: Float = 0f            // -1..1 vertical drift
     var breath: Float = 0f         // -1..1 squash and stretch
     var sway: Float = 0f           // -1..1 side drift
@@ -601,6 +625,8 @@ class CompanionController(startState: CompanionState = CompanionState.Idle) {
         }
 
         frame.tint = CompanionLook.tintFor(state, expression)
+        frame.state = state
+        frame.mood = expression
         frame.bob = CompanionMath.signed(CompanionChannels.bob(now))
         frame.breath = CompanionMath.signed(CompanionChannels.breath(now))
         frame.sway = CompanionMath.signed(CompanionChannels.sway(now))

@@ -12,6 +12,7 @@ import android.view.animation.LinearInterpolator
 import com.flowbubble.app.overlay.companion.CompanionController
 import com.flowbubble.app.overlay.companion.CompanionMood
 import com.flowbubble.app.overlay.companion.CompanionRenderer
+import com.flowbubble.app.overlay.companion.CompanionSprites
 import com.flowbubble.app.overlay.companion.CompanionState as CompanionPose
 import com.flowbubble.app.overlay.companion.CompanionTiming
 import kotlin.math.hypot
@@ -24,8 +25,9 @@ import kotlin.math.min
  * thinks, smiles when it lands the task and droops when it fails.
  *
  * Deliberate constraints baked into this file:
- *  - the drawing is pure Canvas (no image assets, no animation libraries) because this thing has to
- *    survive for hours inside a foreground service on a phone;
+ *  - the face is pre-rendered art and the motion is Canvas: [CompanionSprites] hands over one still
+ *    per expression and [CompanionRenderer] moves it, so a bubble that costs one `drawBitmap` per
+ *    frame can still look like a rendered character after hours in a foreground service;
  *  - nothing allocates per frame — see [CompanionRenderer];
  *  - idle runs at roughly 8 fps and only full-frame rate is spent on the states a human is watching;
  *  - every animation driver is torn down in [onDetachedFromWindow] and refuses to run while hidden.
@@ -48,7 +50,8 @@ class BubbleView(context: Context) : View(context) {
     private fun dp(value: Float) = value * density
 
     private val controller = CompanionController()
-    private val renderer = CompanionRenderer(density)
+    private val sprites = CompanionSprites(context)
+    private val renderer = CompanionRenderer(density, sprites)
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
     /**
@@ -249,6 +252,7 @@ class BubbleView(context: Context) : View(context) {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        sprites.prewarm()
         controller.reset(now())
         controller.setState(state.toPose(), now())
         controller.setMood(mood)

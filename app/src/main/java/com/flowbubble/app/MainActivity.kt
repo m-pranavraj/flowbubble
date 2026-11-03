@@ -17,7 +17,9 @@ import com.flowbubble.app.core.HistoryEntry
 import com.flowbubble.app.core.HistoryStore
 import com.flowbubble.app.core.PermissionState
 import com.flowbubble.app.core.Permissions
+import com.flowbubble.app.service.AutomationReceiver
 import com.flowbubble.app.service.OverlayService
+import com.flowbubble.app.ui.AutomationsScreen
 import com.flowbubble.app.ui.FlowBubbleApp
 import com.flowbubble.app.ui.theme.FlowBubbleTheme
 
@@ -29,6 +31,7 @@ class MainActivity : ComponentActivity() {
         const val SCREEN_SETUP = "setup"
         const val SCREEN_SETTINGS = "settings"
         const val SCREEN_HISTORY = "history"
+        const val SCREEN_AUTOMATIONS = "automations"
 
         fun open(context: Context, screen: String = SCREEN_HOME) {
             context.startActivity(
@@ -69,26 +72,34 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             FlowBubbleTheme {
-                FlowBubbleApp(
-                    screen = screenState.value,
-                    onNavigate = {
-                        screenState.value = it
-                        refreshState()
-                    },
-                    permissions = permissionsState.value,
-                    bubbleRunning = bubbleState.value,
-                    captureActive = captureState.value,
-                    captureError = captureErrorState.value,
-                    history = historyState.value,
-                    onRefresh = { refreshState() },
-                    onToggleBubble = { toggleBubble() },
-                    onEnableCapture = { ScreenCapture.requestConsent(this) },
-                    onStopCapture = { ScreenCapture.stop(this) },
-                    onClearHistory = {
-                        HistoryStore.clear(this)
-                        historyState.value = emptyList()
-                    }
-                )
+                val navigate: (String) -> Unit = {
+                    screenState.value = it
+                    refreshState()
+                }
+                // Automations draws its own header and tab slab, because the shared one lives in another file.
+                when (screenState.value) {
+                    SCREEN_AUTOMATIONS -> AutomationsScreen(
+                        bubbleRunning = bubbleState.value,
+                        onNavigate = navigate
+                    )
+                    else -> FlowBubbleApp(
+                        screen = screenState.value,
+                        onNavigate = navigate,
+                        permissions = permissionsState.value,
+                        bubbleRunning = bubbleState.value,
+                        captureActive = captureState.value,
+                        captureError = captureErrorState.value,
+                        history = historyState.value,
+                        onRefresh = { refreshState() },
+                        onToggleBubble = { toggleBubble() },
+                        onEnableCapture = { ScreenCapture.requestConsent(this) },
+                        onStopCapture = { ScreenCapture.stop(this) },
+                        onClearHistory = {
+                            HistoryStore.clear(this)
+                            historyState.value = emptyList()
+                        }
+                    )
+                }
             }
         }
     }
@@ -113,6 +124,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshState()
+        // Coming back to the app is the moment the bubble may have been switched on or off elsewhere.
+        AutomationReceiver.reschedule(this)
         handler.removeCallbacks(liveTick)
         handler.postDelayed(liveTick, 1000)
     }
@@ -138,6 +151,7 @@ class MainActivity : ComponentActivity() {
         if (OverlayService.isRunning || bubbleState.value) {
             OverlayService.stop(this)
             bubbleState.value = false
+            AutomationReceiver.reschedule(this)
             return
         }
         if (!Permissions.snapshot(this).coreReady) {
@@ -146,7 +160,10 @@ class MainActivity : ComponentActivity() {
         }
         OverlayService.start(this)
         bubbleState.value = true
-        handler.postDelayed({ bubbleState.value = OverlayService.isRunning }, 700)
+        handler.postDelayed({
+            bubbleState.value = OverlayService.isRunning
+            AutomationReceiver.reschedule(this)
+        }, 700)
     }
 
     override fun onDestroy() {

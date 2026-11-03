@@ -4,7 +4,7 @@ import java.util.Locale
 
 enum class RiskLevel { SAFE, CONFIRM, BLOCKED }
 
-data class RiskAssessment(val level: RiskLevel, val reason: String = "") {
+data class RiskAssessment(val level: RiskLevel, val reason: String = "", val tier: RiskTier = RiskTier.forLevel(level)) {
     companion object {
         val Safe = RiskAssessment(RiskLevel.SAFE)
     }
@@ -60,6 +60,10 @@ object SafetyPolicy {
             )
         }
 
+        // CRITICAL is consulted before the ordinary confirmation tiers so money, transfers and
+        // irreversible deletions land on the strictest gate, never on the looser one below.
+        CriticalPolicy.classify(label)?.let { return criticalAssessment(it, label, "Tapping") }
+
         val tokens = tokens(normalized)
         if (tokens.any { it in moneyTokens }) {
             return RiskAssessment(
@@ -96,6 +100,7 @@ object SafetyPolicy {
                 "This looks like a credential field (\"$phrase\"). Your Bubble won't type or submit here."
             )
         }
+        CriticalPolicy.classify(fieldLabel)?.let { return criticalAssessment(it, fieldLabel, "Submitting") }
         if (normalized.isEmpty()) {
             return RiskAssessment(
                 RiskLevel.CONFIRM,
@@ -119,6 +124,47 @@ object SafetyPolicy {
         val normalized = normalize(label)
         return credentialPhrases.any { phrase -> containsPhrase(normalized, phrase) }
     }
+
+    /**
+     * Sending to a person the user did not name this turn is CRITICAL. The recipient comes from the
+     * trusted user request, never from on-screen text, so an unnamed recipient always raises the gate.
+     */
+    fun assessSendToPerson(recipient: String, userNamedRecipients: List<String>): RiskAssessment =
+        CriticalPolicy.classifySendToPerson(recipient, userNamedRecipients)?.let { match ->
+            RiskAssessment(
+                RiskLevel.CONFIRM,
+                "Sending to \u201C$recipient\u201D is critical: ${match.reason.lowercase(Locale.ROOT)} " +
+                    "Approve this exact send and nothing else.",
+                tier = RiskTier.CRITICAL
+            )
+        } ?: RiskAssessment(
+            RiskLevel.CONFIRM,
+            "Sending could reach someone; approve this send."
+        )
+
+    /**
+     * Whether the loop may run a step given the confirmation it holds. A CRITICAL step needs an
+     * explicit approval for this exact id, taken fresh this turn; a timeout, a denial, a reused
+     * approval or none at all never opens the gate, and BLOCKED is never opened by anything.
+     */
+    fun mayExecute(actionId: String, tier: RiskTier, confirmation: ActionConfirmation?): Boolean = when (tier) {
+        RiskTier.SAFE -> true
+        RiskTier.BLOCKED -> false
+        RiskTier.CONFIRM ->
+            confirmation?.actionId == actionId && confirmation?.status == ConfirmationStatus.APPROVED
+        RiskTier.CRITICAL ->
+            confirmation?.actionId == actionId &&
+                confirmation?.status == ConfirmationStatus.APPROVED &&
+                confirmation?.freshThisTurn == true
+    }
+
+    private fun criticalAssessment(match: CriticalMatch, label: String, verb: String): RiskAssessment =
+        RiskAssessment(
+            RiskLevel.CONFIRM,
+            "$verb \u201C$label\u201D is a critical step: ${match.reason.lowercase(Locale.ROOT)} " +
+                "Your Bubble will only do this exact action if you approve it now.",
+            tier = RiskTier.CRITICAL
+        )
 
     private fun normalize(raw: String): String =
         raw.lowercase(Locale.ROOT)

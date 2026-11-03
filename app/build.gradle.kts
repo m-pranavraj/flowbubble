@@ -18,11 +18,14 @@ android {
     compileSdk = 35
 
     defaultConfig {
+        // The product is called Your Bubble; this id stays com.flowbubble.app on purpose. Changing it
+        // would drop every permission the user already granted and install a second app instead of
+        // upgrading the first. See "Name and identity" in README.md.
         applicationId = "com.flowbubble.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 5
+        versionName = "1.2.0"
     }
 
     signingConfigs {

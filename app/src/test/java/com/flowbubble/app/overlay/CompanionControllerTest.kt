@@ -7,6 +7,7 @@ import com.flowbubble.app.overlay.companion.CompanionMood
 import com.flowbubble.app.overlay.companion.CompanionState
 import com.flowbubble.app.overlay.companion.CompanionTint
 import com.flowbubble.app.overlay.companion.CompanionTiming
+import com.flowbubble.app.overlay.companion.SpritePose
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
@@ -233,6 +234,39 @@ class CompanionControllerTest {
         val c = controller.update(1_000L)
         assertSame(a, b)
         assertSame(b, c)
+    }
+
+    @Test
+    fun every_state_and_expression_lands_on_exactly_one_rendered_face() {
+        // The art layer has one still per pose and nothing to fall back on, so a state that mapped to
+        // no face would draw an empty bubble. The working states also own the face outright: a
+        // worried bubble must not be recoloured into curiosity by a stray poke.
+        for (pose in CompanionState.values()) {
+            for (mood in CompanionMood.values()) {
+                val sprite = CompanionLook.spritePose(pose, mood)
+                assertTrue("$pose/$mood picked no face", sprite.name.isNotBlank())
+                if (pose != CompanionState.Idle) {
+                    assertSame(
+                        "$pose recoloured by $mood",
+                        CompanionLook.spritePose(pose, CompanionMood.Neutral),
+                        sprite
+                    )
+                }
+            }
+        }
+        assertEquals(SpritePose.Idle, CompanionLook.spritePose(CompanionState.Idle, CompanionMood.Neutral))
+        assertEquals(SpritePose.Happy, CompanionLook.spritePose(CompanionState.Idle, CompanionMood.Happy))
+        assertEquals(SpritePose.Sleepy, CompanionLook.spritePose(CompanionState.Idle, CompanionMood.Sleepy))
+        assertEquals(SpritePose.Listening, CompanionLook.spritePose(CompanionState.Idle, CompanionMood.Curious))
+    }
+
+    @Test
+    fun the_frame_carries_the_state_and_expression_the_art_layer_needs() {
+        controller.setMood(CompanionMood.Curious)
+        controller.setState(CompanionState.Thinking, 0L)
+        val frame = controller.update(1_000L)
+        assertEquals(CompanionState.Thinking, frame.state)
+        assertEquals(CompanionMood.Curious, frame.mood)
     }
 
     @Test

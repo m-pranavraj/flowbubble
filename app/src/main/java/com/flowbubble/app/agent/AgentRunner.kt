@@ -91,13 +91,33 @@ class AgentRunner(
     private val pendingChoice = AtomicReference<CompletableDeferred<Int?>?>(null)
     private val notes = ArrayList<String>()
 
+    /**
+     * Where the running task has got to. Each step asks it for permission before touching the screen,
+     * so a run the user stopped or refused cannot keep acting from a loop iteration still in flight.
+     */
+    private var machine = TaskStateMachine()
+
+    /** What this task has verified, kept for the length of the task and dropped when it ends. */
+    private var facts = TaskContext("task-0")
+
     fun isRunning(): Boolean = job?.isActive == true
+
+    /**
+     * A new request is a new task: a clean machine and a clean fact store. Nothing from the previous
+     * run survives into it, because a confirmation number from the last task is a rumour about
+     * somebody else's screen by now.
+     */
+    private fun beginRun() {
+        machine = TaskStateMachine().apply { planRequested() }
+        facts = TaskContext("task-$generation")
+    }
 
     fun start(scope: CoroutineScope, goal: String) {
         stop()
         stopRequested = false
         notes.clear()
         val myGeneration = ++generation
+        beginRun()
         job = scope.launch {
             val outcome = try {
                 execute(goal)
@@ -115,6 +135,7 @@ class AgentRunner(
         stopRequested = false
         notes.clear()
         val myGeneration = ++generation
+        beginRun()
         job = scope.launch {
             val outcome = try {
                 runPlan(plan)
@@ -131,6 +152,8 @@ class AgentRunner(
         val wasRunning = job?.isActive == true
         generation++
         stopRequested = true
+        machine.cancelled("stopped by you")
+        facts.close("you stopped the task")
         pendingConfirm.getAndSet(null)?.complete(false)
         pendingChoice.getAndSet(null)?.complete(null)
         job?.cancel()
@@ -189,6 +212,7 @@ class AgentRunner(
     }
 
     private suspend fun runPlan(plan: AgentPlan): AgentOutcome {
+        machine.planReady()
         val total = plan.steps.size
         val steps = ArrayList<TraceStep>()
         val route = if (plan.source == PlanSource.AI) "AI-planned chain" else "planned chain"
@@ -246,6 +270,7 @@ class AgentRunner(
      * reactive tap goes through exactly the same confirmation and credential rules as a planned one.
      */
     private suspend fun runReactive(plan: AgentPlan): AgentOutcome {
+        machine.planReady()
         val budget = ReactiveBudget()
         val steps = ArrayList<TraceStep>()
         val route = if (plan.source == PlanSource.AI) "AI-planned chain, then watched the screen" else "watched the screen"
@@ -270,6 +295,7 @@ class AgentRunner(
         var openedApp = false
         var tapsVerified = false
         var aiConsults = 0
+        var actionsByKind = emptyMap<String, Int>()
         var lastAction: AgentAction? = null
         var sameScreenStreak = 0
         var first: ScreenObservation? = null
@@ -301,6 +327,13 @@ class AgentRunner(
                         "I couldn't read the screen, so I stopped instead of acting blind.",
                         trace(OutcomeKind.FAILED, "I couldn't read the screen.")
                     )
+                // A lock, a sign-in, or a human check on the screen is where the agent's part ends.
+                // Checked every pass, because the chain can walk into one after any step.
+                AppPlaybooks.blockedBy(now)?.let { wall ->
+                    steps.add(TraceStep(label = "Reached a sign-in or a human check", detail = wall, evidence = null))
+                    return AgentOutcome.Failed(wall, trace(OutcomeKind.FAILED, "That part is yours to finish."))
+                }
+                facts.record("app on screen", now.packageName, now.packageName, FactSource.FOREGROUND_PACKAGE)
                 if (first == null) {
                     first = now
                     baselineRevision = now.revision
@@ -341,7 +374,8 @@ class AgentRunner(
                     tapsVerified = tapsVerified,
                     elapsedMs = System.currentTimeMillis() - startedAt,
                     budget = budget,
-                    lastAction = lastAction
+                    lastAction = lastAction,
+                    actionsByKind = actionsByKind
                 )
                 val decision: LoopDecision = if (nextStep < plan.steps.size) {
                     val step = plan.steps[nextStep++]
@@ -450,6 +484,7 @@ class AgentRunner(
                             is AgentAction.OpenApp -> openedApp = true
                             else -> Unit
                         }
+                        actionsByKind = ctx.recordActionKind(decision.action.actionKind()).actionsByKind
                         previous = now
                         if (!outcome.ok) {
                             // A step that failed is information, not a dead end: the next decision is
@@ -553,7 +588,18 @@ class AgentRunner(
         }
     }
 
-    private suspend fun executeStep(step: AgentStep): StepOutcome = when (val action = step.action) {
+    private suspend fun executeStep(step: AgentStep): StepOutcome {
+        // Every change to the screen is asked of the task's own lifecycle first. A run the user
+        // stopped or refused mid-flight reports the reason the machine gives, rather than acting on
+        // a step the loop decided a moment ago.
+        val permission = machine.mayAct()
+        if (permission.refused) {
+            return StepOutcome(false, note = "I left that alone: ${permission.reason}.")
+        }
+        return executeAction(step)
+    }
+
+    private suspend fun executeAction(step: AgentStep): StepOutcome = when (val action = step.action) {
         is AgentAction.OpenApp -> openApp(action)
         is AgentAction.OpenUrl -> openUrl(action)
         is AgentAction.TapTarget -> tapTarget(action)
@@ -656,17 +702,13 @@ class AgentRunner(
             return StepOutcome(false, note = "That looks like a credential field, so I stopped.")
         }
         val risk = SafetyPolicy.assessTap(target.label)
-        when (risk.level) {
-            RiskLevel.BLOCKED -> return StepOutcome(false, note = risk.reason)
-            RiskLevel.CONFIRM -> {
-                val approved = confirm(
-                    title = "Tap \u201C${target.label}\u201D?",
-                    body = risk.reason + " Your Bubble will only tap it if you approve."
-                )
-                if (!approved) return StepOutcome(cancelled = true)
-            }
-            RiskLevel.SAFE -> Unit
-        }
+        val (contract, refused) = gate(
+            label = target.label,
+            ordinal = action.ordinal,
+            risk = risk,
+            title = "Tap \u201C${target.label}\u201D?"
+        )
+        if (refused != null) return refused
 
         ui.closePanel()
         val beforeHash = ScreenFusion.textHash(model)
@@ -677,10 +719,9 @@ class AgentRunner(
         return if (awaitScreenChange(service, beforeHash, beforePackage, 2800)) {
             StepOutcome(true, note = "Tapped \u201C${target.label}\u201D", evidence = "the screen changed after the tap")
         } else {
-            StepOutcome(
-                false,
-                note = "I tapped \u201C${target.label}\u201D, but the screen didn't change, so I stopped instead of guessing."
-            )
+            // The contract wrote this sentence, so a step the contract called critical says which
+            // money or deletion rule stopped it, instead of the generic "the screen didn't change".
+            StepOutcome(false, note = contract.fallbackMessage)
         }
     }
 
@@ -696,18 +737,13 @@ class AgentRunner(
                 false,
                 note = "I couldn't find \u201C${action.label}\u201D on this screen.${captureHint(model)}"
             )
-        val risk = SafetyPolicy.assessTap(target.label)
-        when (risk.level) {
-            RiskLevel.BLOCKED -> return StepOutcome(false, note = risk.reason)
-            RiskLevel.CONFIRM -> {
-                val approved = confirm(
-                    title = "Hold \u201C${target.label}\u201D down?",
-                    body = risk.reason + " Your Bubble will only hold it if you approve."
-                )
-                if (!approved) return StepOutcome(cancelled = true)
-            }
-            RiskLevel.SAFE -> Unit
-        }
+        val (_, refused) = gate(
+            label = target.label,
+            ordinal = action.ordinal,
+            risk = SafetyPolicy.assessTap(target.label),
+            title = "Hold \u201C${target.label}\u201D down?"
+        )
+        if (refused != null) return refused
 
         ui.closePanel()
         val beforeHash = ScreenFusion.textHash(model)
@@ -832,15 +868,13 @@ class AgentRunner(
             // Judge the risk from what the field *is*, not what it currently says - a browser's
             // address bar holds a URL, and a message composer can hold the word "search".
             val submissionLabel = service.focusedFieldLabel()?.takeIf { it.isNotBlank() } ?: fieldLabel
-            val risk = SafetyPolicy.assessSubmission(submissionLabel)
-            when (risk.level) {
-                RiskLevel.BLOCKED -> return StepOutcome(false, note = risk.reason)
-                RiskLevel.CONFIRM -> {
-                    val approved = confirm(title = "Press Enter?", body = risk.reason)
-                    if (!approved) return StepOutcome(cancelled = true)
-                }
-                RiskLevel.SAFE -> Unit
-            }
+            val (_, refused) = gate(
+                label = submissionLabel,
+                ordinal = null,
+                risk = SafetyPolicy.assessSubmission(submissionLabel),
+                title = "Press Enter?"
+            )
+            if (refused != null) return refused
             val before = readModel(service, includePixels = false)
             val beforeHash = before?.let { ScreenFusion.textHash(it) }
             val beforePackage = before?.packageName
@@ -955,18 +989,8 @@ class AgentRunner(
         label: String,
         swipes: Int
     ): StepOutcome {
-        val risk = SafetyPolicy.assessTap(label)
-        when (risk.level) {
-            RiskLevel.BLOCKED -> return StepOutcome(false, note = risk.reason)
-            RiskLevel.CONFIRM -> {
-                val approved = confirm(
-                    title = "Tap \u201C$label\u201D?",
-                    body = risk.reason + " Your Bubble will only tap it if you approve."
-                )
-                if (!approved) return StepOutcome(cancelled = true)
-            }
-            RiskLevel.SAFE -> Unit
-        }
+        val (_, refused) = gate(label, null, SafetyPolicy.assessTap(label), "Tap \u201C$label\u201D?")
+        if (refused != null) return refused
         val before = readModel(service, includePixels = false)
         val beforeHash = before?.let { ScreenFusion.textHash(it) }
         val beforePackage = before?.packageName
@@ -1116,18 +1140,8 @@ class AgentRunner(
             return dismissWithBack(service, beforeHash, beforePackage, control.note)
         }
         val label = control.label.orEmpty()
-        val risk = SafetyPolicy.assessTap(label)
-        when (risk.level) {
-            RiskLevel.BLOCKED -> return StepOutcome(false, note = risk.reason)
-            RiskLevel.CONFIRM -> {
-                val approved = confirm(
-                    title = "Tap \u201C$label\u201D?",
-                    body = risk.reason + " Your Bubble will only tap it if you approve."
-                )
-                if (!approved) return StepOutcome(cancelled = true)
-            }
-            RiskLevel.SAFE -> Unit
-        }
+        val (_, refused) = gate(label, null, SafetyPolicy.assessTap(label), "Tap \u201C$label\u201D?")
+        if (refused != null) return refused
 
         ui.closePanel()
         if (!service.tapByText(label).success) {
@@ -1397,6 +1411,60 @@ class AgentRunner(
         }
     }
 
+    /**
+     * Ask about exactly one step and return the answer as the proof the gate can check. The approval
+     * names this step's id and was taken while the panel for it was open, so it is fresh by
+     * construction; a refusal is a refusal, and being stopped mid-question is a cancel — never the
+     * silence of a timeout read as consent.
+     */
+    private suspend fun confirmStep(contract: ActionContract, title: String, body: String): ActionConfirmation {
+        machine.confirmNeeded()
+        val status = try {
+            if (confirm(title, body)) ConfirmationStatus.APPROVED else ConfirmationStatus.DENIED
+        } catch (cancelled: CancellationException) {
+            machine.cancelled("stopped while asking about \u201C${contract.target}\u201D")
+            throw cancelled
+        }
+        if (status == ConfirmationStatus.APPROVED) machine.confirmed() else machine.declined()
+        return ActionConfirmation(
+            actionId = if (status == ConfirmationStatus.APPROVED) contract.id else "",
+            status = status,
+            freshThisTurn = status == ConfirmationStatus.APPROVED
+        )
+    }
+
+    /**
+     * The single question a screen change has to pass: what the step is, what the safety policy made
+     * of it, and whether the user answered for it. A null answer means the step may go ahead;
+     * otherwise the outcome to report back is already filled in.
+     */
+    private suspend fun gate(
+        label: String,
+        ordinal: Int?,
+        risk: RiskAssessment,
+        title: String,
+        recipient: String = ""
+    ): Pair<ActionContract, StepOutcome?> {
+        val contract = ActionContract.forTap(label, ordinal, risk).let {
+            if (recipient.isBlank()) it else it.copy(recipient = recipient)
+        }
+        if (contract.tier == RiskTier.BLOCKED) {
+            return contract to StepOutcome(false, note = risk.reason)
+        }
+        if (!contract.requiresConfirmation) return contract to null
+        val answer = confirmStep(
+            contract,
+            title = title,
+            body = risk.reason + " Your Bubble will only do this exact step if you approve it."
+        )
+        return if (contract.mayRun(answer)) {
+            contract to null
+        } else {
+            // Nothing was executed, and the reason is the gate's own, not a guess about the screen.
+            contract to StepOutcome(cancelled = answer.status != ConfirmationStatus.APPROVED)
+        }
+    }
+
     private suspend fun confirm(title: String, body: String): Boolean {
         val deferred = CompletableDeferred<Boolean>()
         pendingConfirm.set(deferred)
@@ -1481,6 +1549,16 @@ class AgentRunner(
     )
 
     private fun finish(goal: String, outcome: AgentOutcome) {
+        // The run's last word is the task's last move, and its facts go with it: a value read on this
+        // screen is not something the next request should be allowed to trust.
+        val kind = (outcome as? AgentOutcome.Completed)?.trace?.outcomeFor(stepsDone = true)
+        when {
+            outcome is AgentOutcome.Completed && kind != OutcomeKind.PARTIAL -> machine.completed()
+            outcome is AgentOutcome.Completed -> machine.partiallyCompleted()
+            outcome is AgentOutcome.Failed -> machine.failed(outcome.summary)
+            else -> machine.cancelled("you cancelled")
+        }
+        facts.close("the task is ${machine.state.describe()}")
         when (outcome) {
             is AgentOutcome.Completed -> {
                 val trace = outcome.trace

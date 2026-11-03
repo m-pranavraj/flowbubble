@@ -3,6 +3,7 @@ package com.flowbubble.app.notifications
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import com.flowbubble.app.service.AutomationReceiver
 
 class FlowNotificationService : NotificationListenerService() {
 
@@ -57,6 +58,9 @@ class FlowNotificationService : NotificationListenerService() {
                 ongoing = posted.isOngoing
             )
         )
+        // An automation watching for a message from someone is told the moment it lands, rather than
+        // waiting for the next sweep. The rule still reads the notification itself; this is only a nudge.
+        AutomationReceiver.notifyNotificationArrived(applicationContext)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {

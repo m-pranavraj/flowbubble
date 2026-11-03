@@ -301,6 +301,9 @@ data class LiveSnapshot(
     val packageName: String get() = model.packageName
     val textHash: Int get() = ScreenFusion.textHash(model)
     val targets: List<ScreenTarget> get() = model.targets
+    val focus: FocusedControl? get() = model.focus
+    val editableFields: List<EditableField> get() = model.editableFields
+    val confidence: ScreenConfidence get() = model.confidence
 }
 
 /** What came on screen and what left it between two revisions. */
@@ -330,6 +333,99 @@ data class LiveConfig(
     val paddingPx: Int = 90,
     val historySize: Int = 24
 )
+
+/**
+ * Fills the three things a planner needs that a producer may not have said: where the cursor is,
+ * which fields can take text, and how far to trust the reading. It is a judgement rather than a
+ * match, so it lives beside the live session that publishes it and not inside fusion.
+ */
+object ScreenDetails {
+
+    /**
+     * Returns the model with the extras filled in. Anything the producer already said is kept as it
+     * was, so a service that reported its own focus is never overruled by a guess.
+     */
+    fun enrich(model: ScreenModel, focusedNode: ScreenNode? = null): ScreenModel {
+        val focus = model.focus
+            ?: focusedNode?.let {
+                FocusedControl(
+                    label = if (it.password) "" else it.label.trim(),
+                    box = it.box,
+                    editable = it.editable,
+                    password = it.password
+                )
+            }
+            ?: ScreenFusion.focusOf(model.nodes, model.passwordFocused)
+        val fields = fieldsOf(model).map { field ->
+            // The tree flags focus node by node; the cursor position says the same thing when it
+            // arrived from the window instead, and the two must not disagree about one box.
+            if (focus != null && !field.focused && field.box == focus.box) field.copy(focused = true) else field
+        }
+        val confidence = if (model.confidence.isMeasured) model.confidence else confidenceOf(model, focus, fields)
+        return model.copy(focus = focus, editableFields = fields, confidence = confidence)
+    }
+
+    /**
+     * How much of this screen was actually seen. Pessimistic by design: pixels alone, a blocked
+     * capture, or a tree with no controls in it must not read as a confident picture.
+     */
+    fun confidenceOf(
+        model: ScreenModel,
+        focus: FocusedControl? = model.focus,
+        fields: List<EditableField> = model.editableFields
+    ): ScreenConfidence {
+        val reasons = ArrayList<String>()
+        val named = model.nodes.count { it.box.isValid && it.label.isNotBlank() && !it.password }
+        val actionable = model.nodes.count { it.box.isValid && (it.clickable || it.editable) }
+        var score = when {
+            actionable >= MIN_RICH_TREE -> { reasons.add("the app named $actionable controls itself"); 0.6f }
+            actionable >= 1 -> { reasons.add("the app named only $actionable control(s)"); 0.4f }
+            else -> { reasons.add("the app's own control list came back empty"); 0.1f }
+        }
+        if (named > actionable) score += 0.05f
+        score += when {
+            model.ocr.isNotEmpty() -> { reasons.add("${model.ocr.size} lines were read off the pixels"); 0.2f }
+            model.ocrUsed -> { reasons.add("the screen was captured but gave no text back"); 0.05f }
+            else -> { reasons.add("no pixels were read, so anything drawn is invisible"); 0f }
+        }
+        if (focus != null) score += 0.1f
+        if (fields.isNotEmpty()) score += 0.05f
+        if (model.screenWidth <= 0 || model.screenHeight <= 0) {
+            score -= 0.1f
+            reasons.add("the screen size was unknown")
+        }
+        if (model.secureLikely) {
+            score -= 0.25f
+            reasons.add("the captured frame came back black, so this app blocks screen reading")
+        }
+        if (model.passwordFocused) {
+            score -= 0.2f
+            reasons.add("a password field is focused, so nothing was captured around it")
+        }
+        if (!model.captureError.isNullOrBlank()) {
+            score -= 0.15f
+            reasons.add("screen capture reported a problem")
+        }
+        if (!model.ocrError.isNullOrBlank()) {
+            score -= 0.1f
+            reasons.add("text recognition reported a problem")
+        }
+        val clamped = score.coerceIn(0f, 1f)
+        return ScreenConfidence(levelFor(clamped), clamped, reasons)
+    }
+
+    private fun levelFor(score: Float): ConfidenceLevel = when {
+        score >= 0.75f -> ConfidenceLevel.HIGH
+        score >= 0.45f -> ConfidenceLevel.MEDIUM
+        else -> ConfidenceLevel.LOW
+    }
+
+    /** The fields the producer named, or the ones the tree can name for it. */
+    private fun fieldsOf(model: ScreenModel): List<EditableField> =
+        if (model.editableFields.isEmpty()) ScreenFusion.editableFields(model.nodes) else model.editableFields
+
+    private const val MIN_RICH_TREE = 3
+}
 
 /**
  * The live understanding of the screen: a monotonic revision counter over fused snapshots, with
@@ -436,24 +532,26 @@ class LiveScreenModel(val config: LiveConfig = LiveConfig()) {
     }
 
     /**
-     * Commits a fused model as the new revision. Called once the expensive work is done, with the
-     * signature of the frame the pixels came from so the next diff starts from here.
+     * Commits a fused model as the new revision, enriched first so every revision a reader picks up
+     * carries focus, fields and a confidence whether or not its producer knew about them.
      */
     fun publish(
         model: ScreenModel,
         pixels: GridSignature?,
         atMs: Long,
         pixelsRefreshed: Boolean,
-        region: ScreenBox? = null
+        region: ScreenBox? = null,
+        focusedNode: ScreenNode? = null
     ): LiveSnapshot = synchronized(lock) {
+        val enriched = ScreenDetails.enrich(model, focusedNode)
         val next = revision + 1
-        val snapshot = LiveSnapshot(next, model, atMs, pixelsRefreshed, region)
+        val snapshot = LiveSnapshot(next, enriched, atMs, pixelsRefreshed, region)
         revision = next
         published = snapshot
         baseline = pixels ?: baseline
-        lastTreeHash = ScreenFusion.textHash(model)
+        lastTreeHash = ScreenFusion.textHash(enriched)
         lastPublishAt = atMs
-        labelsByRevision[next] = labelsOf(model)
+        labelsByRevision[next] = labelsOf(enriched)
         history.addLast(snapshot)
         while (history.size > config.historySize) {
             val oldest = history.removeFirst()

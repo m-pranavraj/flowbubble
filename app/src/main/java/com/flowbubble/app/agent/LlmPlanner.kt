@@ -123,7 +123,7 @@ object LlmPlanner {
             is AgentAction.TapTarget -> observation.shows(action.label)
             is AgentAction.LongPress -> observation.shows(action.label)
             is AgentAction.ScrollUntil -> true
-            is AgentAction.TypeText -> goal.contains(action.text, true)
+            is AgentAction.TypeText -> goal.contains(action.text, true) && observation.canReceiveText
             is AgentAction.AskAi -> false
             else -> true
         }

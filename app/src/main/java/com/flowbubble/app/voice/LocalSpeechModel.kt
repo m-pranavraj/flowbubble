@@ -100,7 +100,7 @@ class LocalSpeechModel {
                     downloadable = ModelState(ModelStatus.INSTALLABLE, mode)
                 }
                 FeatureStatus.DOWNLOADING -> return ModelState(ModelStatus.INSTALLING, mode)
-                else -> lastError = "Feature status $status"
+                else -> lastError = describeFeatureStatus(status, language)
             }
         }
         return downloadable ?: ModelState(ModelStatus.UNAVAILABLE, MODE_PRIORITY[0], lastError)
@@ -139,5 +139,22 @@ internal fun describeSpeechError(error: GenAiException): String = when (error.er
     GenAiException.ErrorCode.BACKGROUND_USE_BLOCKED ->
         "Android paused on-device speech to protect battery. Try again."
     else -> error.message ?: "On-device speech failed."
+}
+
+/**
+ * A feature status the probe did not act on, in words.
+ *
+ * The recognizer answers with an int, and Settings was printing "Feature status 0" as if it were a
+ * message — a number the user cannot read or act on, sitting under a chip that already says the same
+ * thing. Each code the framework defines gets the sentence that says what happens next; only a number
+ * outside that list is quoted, and then as something unexpected rather than as the explanation.
+ */
+internal fun describeFeatureStatus(status: Int, language: String): String = when (status) {
+    FeatureStatus.UNAVAILABLE ->
+        "This phone doesn't offer the on-device model for $language, so Your Bubble uses the system recognizer."
+    FeatureStatus.DOWNLOADABLE -> "The on-device model for $language can be downloaded."
+    FeatureStatus.DOWNLOADING -> "The on-device model for $language is downloading."
+    FeatureStatus.AVAILABLE -> "The on-device model for $language is ready."
+    else -> "The on-device model answered with a status this build doesn't know ($status)."
 }
 

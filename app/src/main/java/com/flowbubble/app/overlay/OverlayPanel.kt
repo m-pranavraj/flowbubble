@@ -334,7 +334,7 @@ class OverlayPanel(
         val titles = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             background = withRail(null, withAlpha(accent, 96))
-            setPadding(dp(14f), 0, 0, 0)
+            setPadding(dp(18f), 0, dp(2f), 0)
         }
         val eyebrow = PanelStyle.eyebrow(tone)
         if (eyebrow.isNotEmpty()) {
@@ -344,7 +344,7 @@ class OverlayPanel(
                     sizeSp = 11f,
                     color = withAlpha(accent, 92),
                     face = faceBold,
-                    tracking = 1.6f
+                    tracking = 0.08f
                 ).apply { includeFontPadding = false }
             )
         }
@@ -354,7 +354,7 @@ class OverlayPanel(
                 sizeSp = 19f,
                 color = cMist,
                 face = faceBold,
-                tracking = -0.2f,
+                tracking = 0.01f,
                 maxLines = PanelStyle.titleMaxLines(PanelShape.Sheet)
             ).apply {
                 ellipsize = TextUtils.TruncateAt.END
@@ -615,10 +615,12 @@ class OverlayPanel(
         } else {
             actions.forEachIndexed { index, action ->
                 val role = roles[index]
+                // A stacked button keeps its own height. An exact layout height measures the label
+                // with EXACTLY and clips whatever it needs to wrap to — an "Open Your Bubble setup"
+                // label simply disappears. minimumHeight on the button still guarantees the touch target.
                 val params = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    if (role == ActionRole.Quiet) LinearLayout.LayoutParams.WRAP_CONTENT
-                    else dp(PanelStyle.BUTTON_HEIGHT_DP)
+                    LinearLayout.LayoutParams.WRAP_CONTENT
                 )
                 if (index > 0) {
                     params.topMargin = dp(if (role == ActionRole.Quiet) 4f else 9f)
@@ -634,7 +636,7 @@ class OverlayPanel(
             text = PanelStyle.buttonLabel(action.label, layout)
             textSize = if (layout == ActionLayout.Row) 13.5f else 14.5f
             typeface = if (role == ActionRole.Quiet) faceMedium else faceBold
-            letterSpacing = if (layout == ActionLayout.Row) 0.9f else 0.2f
+            letterSpacing = if (layout == ActionLayout.Row) 0.09f else 0.05f
             gravity = Gravity.CENTER
             includeFontPadding = false
             minimumHeight = dp(PanelStyle.MIN_TOUCH_DP)
@@ -758,7 +760,10 @@ class OverlayPanel(
             ActionRole.Outbound -> withAlpha(cCrimson, 55)
             else -> withAlpha(cLavender, 26)
         }
-        return RippleDrawable(ColorStateList.valueOf(ripple), mask, states)
+        // RippleDrawable(color, CONTENT, mask). Passing the plate as the content and the state list
+        // as the mask paints an opaque black square behind every label and throws the fill away, so
+        // the primary button — black ink on purpose — becomes black on black.
+        return RippleDrawable(ColorStateList.valueOf(ripple), states, mask)
     }
 
     private fun buttonFill(role: ActionRole, radius: Float, pressed: Boolean): LayerDrawable =
@@ -853,7 +858,7 @@ class OverlayPanel(
                 sizeSp = 12f,
                 color = withAlpha(cWhisper, 96),
                 face = faceMedium,
-                tracking = 0.6f
+                tracking = 0.06f
             ),
             LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         )

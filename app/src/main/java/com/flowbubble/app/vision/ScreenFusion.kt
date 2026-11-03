@@ -4,6 +4,7 @@ import java.util.Locale
 
 object ScreenFusion {
     private const val MAX_TARGETS = 600
+    private const val MAX_FIELDS = 40
     private const val MAX_AFFORDANCE_WORDS = 3
 
     fun targets(nodes: List<ScreenNode>, ocr: List<OcrLine>): List<ScreenTarget> {
@@ -20,7 +21,8 @@ object ScreenFusion {
                         box = node.box,
                         source = TargetSource.ACCESSIBILITY,
                         clickable = node.clickable || node.editable,
-                        editable = node.editable
+                        editable = node.editable,
+                        focused = node.focused
                     )
                 )
             }
@@ -55,6 +57,40 @@ object ScreenFusion {
         return result
             .sortedWith(compareBy({ it.box.top }, { it.box.left }))
             .take(MAX_TARGETS)
+    }
+
+    /**
+     * Fields text could be typed into, in reading order. A password box is listed and flagged rather
+     * than dropped, so "there is no field here" and "there is one I must never touch" stay different.
+     */
+    fun editableFields(nodes: List<ScreenNode>): List<EditableField> =
+        nodes.asSequence()
+            .filter { it.editable && it.box.isValid }
+            .sortedWith(compareBy({ it.box.top }, { it.box.left }))
+            .map { node ->
+                EditableField(
+                    label = if (node.password) "" else node.label.trim(),
+                    box = node.box,
+                    password = node.password,
+                    focused = node.focused
+                )
+            }
+            .take(MAX_FIELDS)
+            .toList()
+
+    /** Where the cursor is, from what the tree already says. Null means genuinely unknown. */
+    fun focusOf(nodes: List<ScreenNode>, passwordFocused: Boolean): FocusedControl? {
+        // A focused node is the app's own answer; a password box that reports focus by other means
+        // is the next best thing, and its label is the one thing a reading must not carry away.
+        val node = nodes.firstOrNull { it.focused }
+            ?: nodes.firstOrNull { passwordFocused && it.password }
+            ?: return null
+        return FocusedControl(
+            label = if (node.password) "" else node.label.trim(),
+            box = node.box,
+            editable = node.editable,
+            password = node.password
+        )
     }
 
     fun findTarget(query: String, targets: List<ScreenTarget>, ordinal: Int? = null): ScreenTarget? {

@@ -13,7 +13,9 @@ import android.os.SystemClock
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.Toast
+import com.flowbubble.app.service.AutomationReceiver
 import com.flowbubble.app.vision.ScreenBox
 import com.flowbubble.app.vision.ScreenNode
 
@@ -67,6 +69,11 @@ class FlowAccessibilityService : AccessibilityService() {
         // Our own overlay animates constantly; letting it count would stop every wait from settling.
         if (event.packageName == packageName) return
         ScreenPulse.beat()
+        // A window rising to the front is the one moment "this app was opened" is exactly true, so an
+        // automation watching for it is told here rather than found by the next poll.
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            event.packageName?.let { AutomationReceiver.notifyAppOpened(this, it.toString()) }
+        }
     }
 
     override fun onInterrupt() = Unit
@@ -81,11 +88,38 @@ class FlowAccessibilityService : AccessibilityService() {
         super.onDestroy()
     }
 
+    /**
+     * The focused field, found through the windows that could hold it.
+     *
+     * `rootInActiveWindow` is the normal answer, but it is briefly this app's own overlay — the panel
+     * or the bubble — and an overlay cannot hold input focus. Dictation then reported "nowhere to
+     * type" while a focused field was on screen, because the one root it looked at was the wrong
+     * window. The application windows are searched too, topmost first, but only after the active
+     * window comes up empty: every window root is a separate trip to the framework, and this runs on
+     * the main thread, where a slow lookup is an unresponsive screen.
+     */
     fun focusedNode(): AccessibilityNodeInfo? {
-        val root = rootInActiveWindow ?: return null
-        return root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+        val activeRoot = rootInActiveWindow
+        if (activeRoot != null) {
+            focusIn(activeRoot)?.let { return it }
+        }
+        val activeWindowId = activeRoot?.windowId ?: -1
+        windows
+            .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+            .sortedByDescending { it.layer }
+            .forEach { window ->
+                val root = window.root ?: return@forEach
+                // Same package, different window: when the active root is our own overlay, the window
+                // that holds the focus is another one of ours, and only the ids tell them apart.
+                if (root.windowId == activeWindowId) return@forEach
+                focusIn(root)?.let { return it }
+            }
+        return null
     }
+
+    private fun focusIn(root: AccessibilityNodeInfo): AccessibilityNodeInfo? =
+        root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
 
     fun isPasswordFocused(): Boolean {
         var node = focusedNode()
@@ -893,7 +927,21 @@ class FlowAccessibilityService : AccessibilityService() {
                 node.getChild(i)?.let(queue::add)
             }
         }
-        return result
+        return markFocused(result)
+    }
+
+    /**
+     * Which of the nodes just read holds the cursor. Asked only of a screen that has a field to hold
+     * it, because answering costs another pass over the windows and this runs on the main thread.
+     * Matched by the box the framework itself reports for the focused control.
+     */
+    private fun markFocused(nodes: List<ScreenNode>): List<ScreenNode> {
+        if (nodes.none { it.editable }) return nodes
+        val cursor = focusedNode() ?: return nodes
+        val bounds = Rect()
+        cursor.getBoundsInScreen(bounds)
+        val box = ScreenBox(bounds.left, bounds.top, bounds.right, bounds.bottom)
+        return nodes.map { if (it.editable && it.box == box) it.copy(focused = true) else it }
     }
 
     fun findEditableTarget(hints: List<String>): ScreenBox? {

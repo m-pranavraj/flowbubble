@@ -832,6 +832,9 @@ class OverlayService : Service(), OverlayUi {
             return
         }
 
+        // A phrase automation listens for what the user said, checked before any of it becomes a
+        // command: "movie night" is not a command, and it is still a phrase worth acting on.
+        AutomationReceiver.notifyPhrase(this, text)
         val command = CommandParser.parse(text)
         val editsSelection = command is Command.FollowUp && command.kind.editsText
         if (selection != null && selection.hasSelection && (command == null || editsSelection)) {
@@ -958,6 +961,9 @@ class OverlayService : Service(), OverlayUi {
                             title = "Nowhere to type",
                             body = "Tap a text field first, then hold the bubble. " +
                                 "The text is copied so you can paste it.\n\n\u201C${result.take(240)}\u201D",
+                            // Nothing is being asked of the user, so this card must not sit on top of
+                            // their app forever: it closes itself, and closing loses nothing.
+                            autoDismissMs = 12000,
                             actions = listOf(
                                 PanelAction("Copy text", primary = true) { copy(result) },
                                 PanelAction("Close") { panel.close() }
@@ -1322,8 +1328,8 @@ class OverlayService : Service(), OverlayUi {
             setPadding(dp(16f), dp(10f), dp(16f), dp(10f))
             background = GradientDrawable().apply {
                 cornerRadius = dp(22f).toFloat()
-                setColor(Color.parseColor("#F0121922"))
-                setStroke(dp(1f), Color.parseColor("#665EEAD4"))
+                setColor(Color.parseColor("#F0120C1C"))
+                setStroke(dp(1f), Color.parseColor("#66C9B8FF"))
             }
             contentDescription = "Listening"
         }

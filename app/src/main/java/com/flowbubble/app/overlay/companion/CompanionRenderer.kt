@@ -1,5 +1,6 @@
 package com.flowbubble.app.overlay.companion
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -19,14 +20,19 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * Draws one [CompanionFrame] with the Canvas API. No bitmaps, no Rive, no Lottie.
+ * Draws one [CompanionFrame]: the rendered character when [CompanionSprites] holds the face this
+ * state needs, and the vector creature built from the same frame when it does not.
  *
  * The overlay this runs inside lives for hours on top of every app, so the rule here is strict:
  * every [Paint], [Path], [RectF], [Matrix] and gradient is built once in the constructor and reused.
  * A frame only writes numbers into those objects — `path.reset()`, `paint.alpha = n`,
- * `shader.setLocalMatrix(m)` — and never allocates.
+ * `shader.setLocalMatrix(m)` — and never allocates. The character art is decoded once by
+ * [CompanionSprites] and drawn as it is; nothing here touches disk during a frame.
  */
-class CompanionRenderer(private val density: Float) {
+class CompanionRenderer(
+    private val density: Float,
+    private val sprites: CompanionSprites? = null
+) {
 
     private fun dp(value: Float) = value * density
 
@@ -186,6 +192,11 @@ class CompanionRenderer(private val density: Float) {
         strokeJoin = Paint.Join.ROUND
     }
     private val limbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val spritePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val spriteRect = RectF()
+
+    /** The art is cropped a hair wider than the disc so the baby's hand is not cut by the rim. */
+    private val spriteSide = 1.06f
 
     /**
      * Draws the creature inside a circle of radius [radius] centred on ([cx], [cy]).
@@ -199,7 +210,10 @@ class CompanionRenderer(private val density: Float) {
         val breath = frame.breath
 
         drawAura(canvas, cx, cy + bobPx, r, frame)
-        drawDisc(canvas, cx, cy, r, accent, frame)
+        // The rendered face brings its own dark plate, so the vector disc is only drawn behind it
+        // when there is no art for this pose.
+        val art = sprites?.bitmapFor(CompanionLook.spritePose(frame.state, frame.mood))
+        if (art == null) drawDisc(canvas, cx, cy, r, accent, frame)
         drawRim(canvas, cx, cy, r, accent, frame)
         drawPulseRing(canvas, cx, cy, r, accent, frame)
 
@@ -210,19 +224,38 @@ class CompanionRenderer(private val density: Float) {
         canvas.translate(cx + leanPx + swayPx, cy + bobPx * 1.6f + bouncePx)
         canvas.rotate(frame.tilt * 7f)
 
-        drawShadow(canvas, r, frame)
-        drawFeet(canvas, r, frame)
-        drawBlob(canvas, r, frame, breath)
-        drawBelly(canvas, r, frame)
-        drawGloss(canvas, r, frame)
-        drawAntenna(canvas, r, frame, accent)
-        drawEyes(canvas, r, frame)
-        drawMouth(canvas, r, frame)
-        drawBlush(canvas, r, frame)
+        if (art != null) {
+            drawSprite(canvas, r, art, frame)
+        } else {
+            drawShadow(canvas, r, frame)
+            drawFeet(canvas, r, frame)
+            drawBlob(canvas, r, frame, breath)
+            drawBelly(canvas, r, frame)
+            drawGloss(canvas, r, frame)
+            drawAntenna(canvas, r, frame, accent)
+            drawEyes(canvas, r, frame)
+            drawMouth(canvas, r, frame)
+            drawBlush(canvas, r, frame)
+        }
         drawHalo(canvas, r, frame, accent)
         drawSparks(canvas, r, frame, accent)
         drawBadge(canvas, r, frame)
         canvas.restore()
+    }
+
+    /**
+     * The character art, wearing the same motion as the vector body: it leans, sways, bounces and
+     * tilts with the frame, and breathes by stretching a couple of percent instead of redrawing.
+     */
+    private fun drawSprite(canvas: Canvas, r: Float, art: Bitmap, frame: CompanionFrame) {
+        val stretch = 1f + frame.breath * 0.02f + frame.amplitude * 0.035f
+        val squeeze = 1f - frame.breath * 0.015f
+        val side = r * 2f * spriteSide
+        canvas.scale(squeeze, stretch)
+        spriteRect.set(-side / 2f, -side / 2f, side / 2f, side / 2f)
+        spritePaint.alpha = (255 - frame.dim * 90f).toInt().coerceIn(120, 255)
+        canvas.drawBitmap(art, null, spriteRect, spritePaint)
+        spritePaint.alpha = 255
     }
 
     // ------------------------------------------------------------------------------------------

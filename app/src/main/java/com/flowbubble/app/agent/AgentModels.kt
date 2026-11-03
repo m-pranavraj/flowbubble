@@ -69,10 +69,23 @@ data class ScreenObservation(
     val actionableCount: Int = 0,
     val passwordFocused: Boolean = false,
     val pixelsRead: Boolean = false,
+    /** The field holding the cursor, or blank when the reading could not tell. Never its contents. */
+    val focusedLabel: String = "",
+    /** Fields text may be typed into, password boxes excluded. Zero means a type step has nowhere to go. */
+    val writableFieldCount: Int = 0,
+    val readingConfidence: String = "",
     val note: String = ""
 ) {
     /** Two observations with the same fingerprint are the same screen as far as the loop can tell. */
     val fingerprint: String get() = "$packageName/$textHash"
+
+    /**
+     * Whether a typed step has anywhere to land. Only a reading that scored its own fields is allowed
+     * to say no: a producer that never looked reports zero fields for every screen, and treating that
+     * as a wall would stop typing everywhere.
+     */
+    val canReceiveText: Boolean
+        get() = readingConfidence == "unmeasured" || writableFieldCount > 0 || focusedLabel.isNotBlank()
 
     /** True when [raw] names something on this screen, in either direction of containment. */
     fun shows(raw: String): Boolean {
@@ -98,6 +111,9 @@ data class ScreenObservation(
                 actionableCount = model.targets.count { it.clickable || it.editable },
                 passwordFocused = model.passwordFocused,
                 pixelsRead = model.ocrUsed,
+                focusedLabel = model.focus?.label.orEmpty(),
+                writableFieldCount = model.writableFields.size,
+                readingConfidence = model.confidence.level.name.lowercase(),
                 note = model.captureError.orEmpty()
             )
 
@@ -247,6 +263,9 @@ data class ReactiveBudget(
             "I scrolled $ctx.scrollsUsed times and never saw what I was looking for."
         ctx.sameScreenStreak >= maxSameScreenWaits ->
             "The screen stopped changing, so doing the same thing again wouldn't help."
+        ctx.mostRepeatedActionKind >= maxActionsOfOneKind ->
+            "I stopped after repeating the same kind of action $maxActionsOfOneKind times, " +
+                "because doing it again wasn't getting me closer to \u201C${abbreviate(ctx.goal.raw)}\u201D."
         else -> null
     }
 }
@@ -282,8 +301,38 @@ data class LoopContext(
     val openedApp: Boolean = false,
     val elapsedMs: Long = 0,
     val budget: ReactiveBudget = ReactiveBudget(),
-    val lastAction: AgentAction? = null
-)
+    val lastAction: AgentAction? = null,
+    /** How many times the loop has run each kind of action, so [ReactiveBudget.maxActionsOfOneKind] can bite. */
+    val actionsByKind: Map<String, Int> = emptyMap()
+) {
+    /** The loop calls this after acting, so the same control can't be tapped without limit. */
+    fun recordActionKind(kind: String): LoopContext =
+        copy(actionsByKind = actionsByKind + (kind to (actionsByKind[kind] ?: 0) + 1))
+
+    /** The busiest count in the tally; drives the same-kind ceiling without a second pass. */
+    val mostRepeatedActionKind: Int get() = actionsByKind.values.maxOrNull() ?: 0
+}
+
+/** A stable name for the kind of a step, so the tally groups repeatable controls together. */
+fun AgentAction.actionKind(): String = when (this) {
+    is AgentAction.TapTarget -> "tap:${label.lowercase()}"
+    is AgentAction.LongPress -> "long-press:${label.lowercase()}"
+    is AgentAction.ScrollUntil -> "scroll-until:${label.lowercase()}"
+    is AgentAction.Scroll -> "scroll"
+    is AgentAction.Swipe -> "swipe"
+    is AgentAction.TypeText -> "type"
+    is AgentAction.OpenApp -> "open-app"
+    is AgentAction.OpenUrl -> "open-url"
+    is AgentAction.Wait -> "wait"
+    is AgentAction.AskAi -> "ask-ai"
+    AgentAction.OpenMenu -> "menu"
+    AgentAction.ClearField -> "clear-field"
+    AgentAction.SelectAll -> "select-all"
+    AgentAction.CopySelection -> "copy"
+    AgentAction.Paste -> "paste"
+    AgentAction.Dismiss -> "dismiss"
+    AgentAction.Back -> "back"
+}
 
 /** The one step the loop takes next, or the reason it is not taking one. */
 sealed interface LoopDecision {

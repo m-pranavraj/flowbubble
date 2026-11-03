@@ -41,7 +41,9 @@ data class ScreenNode(
     val editable: Boolean,
     val password: Boolean,
     val scrollable: Boolean,
-    val packageName: String?
+    val packageName: String?,
+    /** The node the app holds its cursor in. Defaulted so producers that predate it stay valid. */
+    val focused: Boolean = false
 )
 
 data class OcrWord(
@@ -63,9 +65,49 @@ data class ScreenTarget(
     val box: ScreenBox,
     val source: TargetSource,
     val clickable: Boolean,
-    val editable: Boolean = false
+    val editable: Boolean = false,
+    val focused: Boolean = false
 ) {
     val normalized: String get() = TextMatcher.normalize(label)
+}
+
+/**
+ * The control the app has its cursor in. A password box keeps its label to itself, because the name of
+ * a credential is not something a reading should pass on.
+ */
+data class FocusedControl(
+    val label: String,
+    val box: ScreenBox,
+    val editable: Boolean,
+    val password: Boolean
+)
+
+/** One field text could be typed into, named by its label. A field's contents are never part of this. */
+data class EditableField(
+    val label: String,
+    val box: ScreenBox,
+    val password: Boolean = false,
+    val focused: Boolean = false
+)
+
+enum class ConfidenceLevel { HIGH, MEDIUM, LOW, UNMEASURED }
+
+/** How much of this screen the reading actually saw, with the reasons in words an agent can say. */
+data class ScreenConfidence(
+    val level: ConfidenceLevel,
+    val score: Float,
+    val reasons: List<String> = emptyList()
+) {
+    val isMeasured: Boolean get() = level != ConfidenceLevel.UNMEASURED
+
+    companion object {
+        /** A producer that never scored its reading. It is not the same thing as a low score. */
+        val Unmeasured = ScreenConfidence(
+            ConfidenceLevel.UNMEASURED,
+            0f,
+            listOf("this reading was never scored")
+        )
+    }
 }
 
 data class ScreenModel(
@@ -79,9 +121,19 @@ data class ScreenModel(
     val secureLikely: Boolean,
     val passwordFocused: Boolean,
     val captureError: String? = null,
-    val ocrError: String? = null
+    val ocrError: String? = null,
+    /** Null means the reading cannot say where the cursor is; it is not a claim that nothing is. */
+    val focus: FocusedControl? = null,
+    val editableFields: List<EditableField> = emptyList(),
+    val confidence: ScreenConfidence = ScreenConfidence.Unmeasured
 ) {
     val targets: List<ScreenTarget> by lazy { ScreenFusion.targets(nodes, ocr) }
+
+    /** Fields it is allowed to type into: editable, and not a password box. */
+    val writableFields: List<EditableField> get() = editableFields.filterNot { it.password }
+
+    /** The field holding the cursor, when that field is one this app may touch. */
+    val focusedField: EditableField? get() = editableFields.firstOrNull { it.focused && !it.password }
 
     fun findTarget(query: String, ordinal: Int? = null): ScreenTarget? =
         ScreenFusion.findTarget(query, targets, ordinal)
