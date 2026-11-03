@@ -189,4 +189,25 @@ class LocalPlannerTest {
         assertFalse(LocalPlanner.isControlPhrase("copy the whole paragraph please"))
         assertFalse(LocalPlanner.isControlPhrase(""))
     }
+
+    @Test
+    fun `a chain that ends where nothing can be seen has no finish line`() {
+        assertNull(LocalPlanner.reactiveGoal("open chrome and search for weather"))
+    }
+
+    @Test
+    fun `a chain takes its finish line from the last clause`() {
+        val goal = LocalPlanner.reactiveGoal("open settings and open chrome")
+        assertNotNull(goal)
+        assertEquals(GoalKind.OPEN_APP, goal!!.kind)
+        assertEquals("chrome", goal.appName)
+    }
+
+    @Test
+    fun `a single app open still checks the foreground`() {
+        val goal = LocalPlanner.reactiveGoal("open chrome")
+        assertNotNull(goal)
+        assertEquals(GoalKind.OPEN_APP, goal!!.kind)
+        assertEquals(listOf(GoalCondition.Foreground("", "chrome")), goal.doneWhen)
+    }
 }

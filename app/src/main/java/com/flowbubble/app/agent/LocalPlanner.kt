@@ -490,10 +490,12 @@ object LocalPlanner {
         if (text.isEmpty()) return null
 
         scrollGoal(text)?.let { return it }
-        singleGoal(text)?.let { return it }
 
         val clauses = text.split(chainSplitter).map { it.trim() }.filter { it.isNotEmpty() }
-        if (clauses.size < 2) return null
+        // A chain's finish line is its last clause. Matching the whole sentence instead lets the first
+        // verb swallow the rest, so "open chrome and search for weather" waited for an app named
+        // "chrome and search for weather" and called the job a failure after it had already succeeded.
+        if (clauses.size < 2) return singleGoal(text)
         val last = clauses.last()
         if (tapFollowUpRegex.matches(last)) {
             // "scroll down to X and tap it" - the finish line is the tap, on the clause before it.
