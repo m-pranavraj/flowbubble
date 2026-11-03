@@ -76,8 +76,12 @@ Build and verify locally:
 ```bash
 ./gradlew :app:assembleRelease
 "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs \
-  app/build/outputs/apk/release/YourBubble-1.0.0-release.apk
+  app/build/outputs/apk/release/YourBubble-<versionName>-release.apk
 ```
+
+The artifact name carries `versionName` from `app/build.gradle.kts`, so the file above is
+`YourBubble-1.2.0-release.apk` for this release and whatever the next bump says. The first two
+releases on GitHub were published as `FlowBubble-…`; 1.2.0 is the first asset under the new name.
 
 `apksigner` lives in `$ANDROID_HOME/build-tools/<version>/`. A verified certificate means the
 APK is installable as an update over a previous install by the same key.
@@ -97,10 +101,10 @@ Until those secrets exist, tag pushes still build and upload the artifact to the
 GitHub Release is published. Releases can always be published from a workstation instead:
 
 ```bash
-gh release create v1.0.0 \
-  app/build/outputs/apk/release/YourBubble-1.0.0-release.apk \
+gh release create v1.2.0 \
+  app/build/outputs/apk/release/YourBubble-1.2.0-release.apk \
   docs/assets/yourbubble-icon.png \
-  --title "Your Bubble v1.0.0" --notes "…"
+  --title "Your Bubble v1.2.0" --notes "…"
 ```
 
 ## Installing a release build
@@ -111,7 +115,7 @@ permissions and its history:
 
 ```bash
 adb uninstall com.flowbubble.app
-adb install -r YourBubble-1.0.0-release.apk
+adb install -r YourBubble-1.1.0-release.apk
 ```
 
 Then reopen the Setup screen and re-grant microphone, overlay, accessibility, notification

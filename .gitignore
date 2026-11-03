@@ -17,3 +17,9 @@ keystore.properties
 
 # Chat-session scratch images, not project assets.
 vibe_images/
+
+# Console captures from harness runs. What a run proved is kept under verify/; the raw log of the
+# run itself is workstation scratch and changes on every pass.
+pc*.log
+bench*.log
+build-*.log

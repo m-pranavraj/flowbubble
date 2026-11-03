@@ -175,9 +175,21 @@ function screenSize() {
   return match ? { w: Number(match[1]), h: Number(match[2]) } : { w: 1080, h: 2400 };
 }
 
-function dumpUi() {
-  shell('uiautomator dump /sdcard/bench-ui.xml', { allowFail: true, timeout: 20000 });
-  return shell('cat /sdcard/bench-ui.xml', { allowFail: true, timeout: 20000 });
+/*
+ * A failed dump ("ERROR: could not get idle state", "null root node") leaves whatever the previous
+ * dump wrote at that path, so reading the file alone can hand back a different screen and the task
+ * would then be judged against the wrong UI. Deleting first turns a failed dump into a missing file,
+ * which the retry below treats as one, instead of a stale tree that looks fresh.
+ */
+function dumpUi(attempts = 3) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    shell('rm -f /sdcard/bench-ui.xml', { allowFail: true, timeout: 15000 });
+    shell('uiautomator dump /sdcard/bench-ui.xml', { allowFail: true, timeout: 20000 });
+    const xml = shell('cat /sdcard/bench-ui.xml', { allowFail: true, timeout: 20000 });
+    if (xml.includes('<node') && xml.length > 800) return xml;
+    sleep(700);
+  }
+  return '';
 }
 
 function nodeCentre(xml, label) {
@@ -254,10 +266,10 @@ function waitFor(what, probe, timeoutMs) {
  * is deleted first. Toggling accessibility_enabled on its own was tried and left the entry stuck.
  */
 function rebindAccessibility() {
-  shell('settings delete secure enabled_accessibility_services', { allowFail: true });
+  shell('settings delete secure --user 0 enabled_accessibility_services', { allowFail: true });
   sleep(3000);
-  shell(`settings put secure enabled_accessibility_services ${PKG}/${PKG}.access.FlowAccessibilityService`, { allowFail: true });
-  shell('settings put secure accessibility_enabled 1', { allowFail: true });
+  shell(`settings put secure --user 0 enabled_accessibility_services ${PKG}/${PKG}.access.FlowAccessibilityService`, { allowFail: true });
+  shell('settings put secure --user 0 accessibility_enabled 1', { allowFail: true });
   sleep(6000);
 }
 

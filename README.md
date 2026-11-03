@@ -6,7 +6,11 @@ A permission-gated voice and vision layer for Android. A floating bubble holds t
 
 This repository is a working Android app (Kotlin, Jetpack Compose, custom overlay windows), not a mockup. It uses documented Android capabilities only: overlay windows, an accessibility service, MediaProjection screen capture with on-device OCR, a notification listener, a microphone foreground service, runtime permissions, intents, and a Quick Settings tile. There is no root, no hidden privilege escalation, and no attempt to bypass lock screens, authentication, or passwords.
 
-[about.md](about.md) is the full state of the project in one file: what is built, what is not built, what should be improved in what exists, and which advanced features are possible next — with the evidence behind each claim.
+[feature.md](feature.md) is the capability catalogue: every feature, tagged with how far it has actually
+been proved — seen on a device, covered by tests but never watched on a device, or built and not wired
+to anything the user can reach. [about.md](about.md) is the full state of the project in one file: what
+is built, what is not built, what should be improved in what exists, and which advanced features are
+possible next — with the evidence behind each claim.
 
 ## What is built
 
@@ -21,13 +25,16 @@ This repository is a working Android app (Kotlin, Jetpack Compose, custom overla
 - Conversational follow-ups: after a dictation or a screen reading, "make it shorter", "make this professional", "turn that into bullet points", or "translate that to Spanish" reuse the text you just produced. "Undo that", "do that again", and "copy that" work on the last step. Follow-up memory lives in RAM only and is cleared when the bubble turns off.
 - Smart screen actions: "what can I do here" scans the visible text for phone numbers, email addresses, links, and street addresses and offers buttons such as Call, Email, Open, or Map. Nothing runs until you tap a button, and Call still only opens the prefilled dialer.
 - Voice routines: "save this as a routine called morning brief" (or "save routine check battery for run battery status"), then "run routine morning brief" from any app. Routines are stored on-device, capped at 20, listed in Settings with a delete confirmation, and replay through the normal confirmation gates.
-- Direct OS controls: "flashlight"/"flashlight off", "volume up/down" (three steps), "set volume to 30 percent", "mute"/"unmute", and "battery". Flashlight and volume read the real system state back and say "requested" when Android accepts without confirming.
+- Direct OS controls: "flashlight"/"flashlight off", "volume up/down" (one step per request; say "volume up 5" for five), "set volume to 30 percent", "mute"/"unmute", and "battery". Flashlight and volume read the real system state back and say "requested" when Android accepts without confirming.
 - Drafts, never sends: "draft an email to alex@example.com about the meeting" opens your mail app with the address and subject ready, and "add a calendar event called dentist" opens the event editor with the title. Both panels state plainly that you press Send or Save yourself.
 - Notification access is explicit and bounded: Your Bubble keeps only notifications that arrive while it is connected, in memory (last 40), never reads notification history, and dismisses only notifications it recorded after a confirmation.
 - Message drafts never send themselves. Your Bubble resolves a contact, shows the exact message, and opens WhatsApp or WhatsApp Business (or the SMS composer) with the text ready, using an international (E.164) number so the draft reaches the right chat. The user presses Send.
 - Existing conversations open directly: "go to chat of Pranav", "open chat with Priya on WhatsApp", "WhatsApp Arjun". Contacts are resolved as people (every saved number attached, mobile first), an exact name is never listed twice, and a name that matches several people asks you to choose. Android has no "find this person's chat" API, so Your Bubble uses each app's published deep link, then requires two independent facts before reporting success: the chat app came to the front, and the person's name is visible in it. A missing app, a contact with no number, or a saved national number that cannot be made international each produce their own honest panel with a usable fallback.
 - Hindi and Hinglish commands: with the language set to हिन्दी or English (India), the core requests work in Devanagari or romanised form — "यूट्यूब खोलो", "क्रोम में मौसम खोजो", "स्क्रीन पढ़ो", "नीचे स्क्रॉल करो", "सेटिंग्स पर टैप करो", "प्रणव को कॉल करो", "प्रणव से चैट करो", "प्रणव को मैसेज भेजो कि …", "पाँच मिनट का टाइमर लगाओ", "टॉर्च चालू करो", "आवाज़ बढ़ाओ", "बैटरी बताओ". A spoken message body stays in its own script, and every rewritten phrase enters the same English grammar, safety gates, routing, and verification as an English command. Anything outside the fixed command set is still treated as dictation, not guessed at.
-- A local activity history (last 100 summaries, on-device only) and a settings screen for the optional AI endpoint, AI planning, language, the speech engine, voice routines, and history.
+- Continuous screen watching: "keep watching this screen", "watch until it's done", "stop watching". While a watch is on, Your Bubble re-reads the screen whenever it changes and the reactive loop can act on what appears — so "scroll down" or "tap that chat" mid-task works without re-establishing access. The bubble wears a different expression while the eyes are open, and the watch ends with the bubble switch.
+- Automations: rules that run without anyone holding the bubble. A rule is a name, a trigger (a time of day, an app being opened, a notification matching a sender/title/body, or a spoken phrase), and up to a few steps that are replayed through the same parser and the same safety gates as a spoken command. Time rules are armed with an inexact `AlarmManager` window and re-arm for the next day; the Automations screen shows a plain-language summary, a per-rule switch, the last run, and an honest warning when a step cannot be replayed or will need your OK first. Nothing runs while the bubble is off, and an ask is never a silent yes.
+- Asking instead of guessing: when a target is ambiguous, "which one?" comes back as `Clarify` and "that one, the second card" as `Point`, rather than a blind coordinate tap.
+- A local activity history (last 100 summaries, on-device only) and a settings screen for the optional AI endpoint, AI planning, language, the speech engine, voice routines, automations, and history.
 - Permission onboarding that explains every capability and blocks features honestly when access is missing.
 - One routing table decides what is possible before anything runs. `agent/CapabilityRouter.kt` maps every command to ready, gated (with the exact system switch and a button that opens that screen), or unsupported — so the panel, the history entry, and the settings prompt all agree about what was actually possible, and no half-configured action pretends to have worked.
 - An explicit outcome vocabulary (`agent/Outcome.kt`): completed, partial, awaiting user, unsupported, failed. Agent chains carry a step-by-step execution trace, and a chain is only reported complete when every step has evidence the system actually observed. Steps that Android never confirms are listed as "not confirmed by the system".
@@ -36,7 +43,7 @@ This repository is a working Android app (Kotlin, Jetpack Compose, custom overla
 
 - Windows, macOS, or Linux with Android Studio or a standalone Android SDK.
 - JDK 21 to run Gradle (the app targets Java 17 bytecode).
-- Android 8.0 (API 26) or newer, with Google speech recognition available. API 30+ is recommended: the accessibility screenshot action and media key control require it, and current Android versions show the system screen-capture consent flow. The bundled ML Kit text-recognition model works offline.
+- Android 8.0 (API 26) or newer, with Google speech recognition available. API 31+ is recommended: the accessibility screenshot action needs API 30, media key control needs API 31, copy and selection actions need API 28, and current Android versions show the system screen-capture consent flow. The bundled ML Kit text-recognition model works offline.
 - `adb` for sideloading.
 
 Android Studio writes `local.properties` with your SDK path the first time you open the project. It is gitignored and never committed.
@@ -59,7 +66,7 @@ Run the unit tests:
 Install on a connected device or emulator:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/YourBubble-1.0.0-debug.apk
+adb install -r app/build/outputs/apk/debug/YourBubble-<versionName>-debug.apk
 ```
 
 ## Release and CI
@@ -93,7 +100,9 @@ This build is intended for developer testing and sideloading. Google Play restri
 
 ### Name and identity
 
-The app is called **Your Bubble**. It was called FlowBubble up to version 1.0.2, and the old name still appears in the package id, the git remote, and internal log tags — deliberately. `applicationId` stays `com.flowbubble.app` because changing it would make Android treat the app as a different product: the overlay, microphone, accessibility and notification-listener permissions a user already granted would be lost, the accessibility service binding would drop, the signing identity would no longer match, and an upgrade would install a second app instead of replacing the first. The same reason keeps `@style/Theme.FlowBubble` and the `FlowBubbleDebug` log tag in place, and it is why the release artifacts are named `YourBubble-…` rather than carrying a space.
+The app is called **Your Bubble**. It shipped as FlowBubble through version 1.0.1, the last tag on this
+repository; the rename landed after it, and the first release under the new name is 1.2.0. The old name
+still appears in the package id, the git remote, and internal log tags — deliberately. `applicationId` stays `com.flowbubble.app` because changing it would make Android treat the app as a different product: the overlay, microphone, accessibility and notification-listener permissions a user already granted would be lost, the accessibility service binding would drop, the signing identity would no longer match, and an upgrade would install a second app instead of replacing the first. The same reason keeps `@style/Theme.FlowBubble` and the `FlowBubbleDebug` log tag in place, and it is why the release artifacts are named `YourBubble-…` rather than carrying a space.
 
 The wake phrase is unchanged: **"Hello Bubble"**.
 
@@ -197,6 +206,48 @@ It powers:
 
 The key is stored in an encrypted preference file backed by the Android Keystore, is never printed in full (the screen shows the last four characters), and never reaches a log or the history. If a device cannot open its keystore the settings screen says so instead of failing quietly, and the keys fall back to ordinary app storage. No audio is sent to any endpoint, and no screenshot image is sent: screen features send only the visible text you approved, and the panel names the host and the character count first.
 
+## Automations
+
+An automation is a rule that runs without anyone holding the bubble: a trigger, then a few steps replayed
+through the same parser and the same safety gates as a spoken command. Build them in **Automations**, from
+the app's own navigation.
+
+| Trigger | Fires when | How it is woken |
+|---|---|---|
+| At a time | "06:12", daily or once | `AlarmManager` with a five-minute window. The app never asks for exact-alarm permission, so a rule fires *around* its time, not at it: a 06:12 rule was observed firing at 06:17. |
+| An app is opened | the foreground package matches | the accessibility service reports window changes directly |
+| A notification matches | sender, title, or body matches what you typed | the notification listener pokes the sweep |
+| A phrase is said | the recognised transcript contains it | the speech pipeline hands it over |
+
+What the screen tells you, before you save:
+
+- **Amber** lists steps a saved rule cannot replay at all — routine management, follow-ups, and anything
+  that depends on the conversation that produced it.
+- **Red** appears when a step will need your OK when it runs: sending, calling, pointing, clearing
+  notifications, deleting a routine, a tap the safety layer does not rate safe, or a free-form agent
+  task. That answer is derived from the steps every time, never trusted from a stored flag, so a rule
+  edited on disk cannot talk its way out of a confirmation.
+- The two banners ask different questions, so a rule can legitimately show one and not the other.
+- Opening an app is safe however it is worded. "open the clock app", "go to the camera app" and "open
+  YouTube" show neither banner — unit-tested and then watched on the device.
+
+And after you save:
+
+- Nothing runs while the bubble is off. That switch is a global kill switch: an in-flight rule stops and
+  the polling stops. The schedule is re-armed rather than cancelled, so turning the bubble back on does
+  not lose tomorrow's run.
+- A rule that needs your OK raises an ask instead of acting, and an unanswered ask is recorded as "Needs
+  your OK". It never becomes a silent yes.
+- Only a rule's own name and kind reach logcat — never a phrase, screen text, or notification body.
+- Rules survive a reboot (`BOOT_COMPLETED` re-arms the plan) and each last run is shown on its row.
+- 20 rules maximum, stored on-device in their own preferences file, committed synchronously so a rule and
+  its alarm cannot be lost separately.
+
+The time trigger is proven end to end on device: created in the UI, written to disk, armed in
+`dumpsys alarm`, fired, dispatched, executed (the Clock app came to the front), recorded, and re-armed for
+the next day. The other three triggers have real feeds and passing tests but have not been watched firing
+yet — see [feature.md](feature.md).
+
 ## Safety behavior
 
 - No messages, posts, purchases, or deletions are completed without a visible confirmation panel and the user's own answer: a tap, or a spoken yes when hands-free is on. A prompt that is ignored, times out, or is closed is a no.
@@ -232,7 +283,7 @@ The key is stored in an encrypted preference file backed by the Android Keystore
 - Copy, select-all, and set-selection need Android 9 or newer and depend on the app exposing its text range; a field that reports no selection gets "asked the app to copy" rather than a success claim, and Your Bubble can never show clipboard contents.
 - Notification reading only covers notifications posted while the listener is connected. Notification history is never read. Notification content can be hidden by the posting app.
 - The screenshot command asks Android's accessibility service to capture the screen; the system saves it and Your Bubble cannot confirm the saved file or album.
-- The current build does not implement a custom IME, VoiceInteractionService assistant role, or a wake word. Those are deliberate non-goals for this milestone.
+- The current build does not implement a custom IME or take the system assistant role (`VoiceInteractionService`). Those are deliberate non-goals for this milestone. The wake phrase *is* implemented — see [Hands-free](#hands-free) — but it is a pass-through recognizer that keeps listening and matches "hello bubble" inside the transcript, not a low-power hardware hotword detector, which is why it costs battery while the bubble is on and pauses with the screen.
 - Timed Do Not Disturb is re-armed from a stored deadline on service start and after a reboot. If Your Bubble is uninstalled before that deadline, Android keeps the interruption filter as set.
 - Timer and alarm commands depend on an installed clock app that accepts Android's standard intents; the panel reports that the request was sent, not that the clock app displayed a toast.
 - Message resolution uses the name you speak, then the first matching number. If several contacts share a name, Your Bubble asks you to choose. Multi-word contact names require the "saying" form: "text Sarah Smith saying I'm late."
@@ -259,6 +310,9 @@ app/src/main/java/com/flowbubble/app/
   core/                        preferences, permissions, history, notifications
   core/LastActionMemory.kt     in-memory follow-up context (never written to disk)
   core/RoutineStore.kt         on-device voice routines (SharedPreferences)
+  core/AutomationStore.kt      automation rules, saved synchronously so a rule
+                               and its alarm cannot be lost separately
+  core/LocalModelStore.kt      the on-device model catalog, sizes, and download
   core/TorchController.kt      flashlight control with state verification
   core/VolumeController.kt     media volume control and level reporting
   access/FlowAccessibilityService.kt
@@ -270,6 +324,8 @@ app/src/main/java/com/flowbubble/app/
                                punctuation / Devanagari marks still match
   capture/                     MediaProjection foreground service, in-memory
                                frames, consent activity, capture state
+  capture/ScreenSession.kt     the continuous watch: re-read on screen change
+                               and hand what appears to the reactive loop
   vision/                      ML Kit OCR, accessibility+OCR fusion, text
                                matching and scoring, screen model factory
   vision/SmartActions.kt       phone, email, link, and address detection with
@@ -279,11 +335,20 @@ app/src/main/java/com/flowbubble/app/
   agent/CapabilityRouter.kt   pure route table: ready / gated / unsupported,
                                with the system switch each gate needs
   agent/Outcome.kt             shared outcome vocabulary and execution trace
+  agent/AutomationEngine.kt    trigger matching, replay safety, next-run maths
+  agent/ActionContract.kt      per-action confirmation contract (partly unwired)
+  agent/TaskStateMachine.kt    guarded task lifecycle (partly unwired)
+  agent/TaskContext.kt         facts carried across steps (partly unwired)
+  agent/AppPlaybooks.kt        per-app knowledge catalog (built, not wired)
   notifications/               notification listener, in-memory ring buffer
-  overlay/BubbleView.kt        custom glowing bubble and gesture arbitration
+  overlay/BubbleView.kt        the companion window and gesture arbitration
   overlay/OverlayPanel.kt      programmatic result and confirmation cards
+  overlay/companion/           the character: pure-Kotlin state machine,
+                               Canvas renderer, and the rendered sprite art
   voice/                       speech controller, command parser, text rules,
                                optional OpenAI-compatible client
+  voice/HandsFree.kt           wake-phrase matching over live transcripts
+  voice/AiProviders.kt         the hosted provider registry and profile rules
   voice/TranscriptionEngine.kt engine abstraction and the automatic fallback
   voice/LocalSpeechEngine.kt   on-device ML Kit recognizer
   voice/LocalSpeechModel.kt    model status and user-triggered install
@@ -294,10 +359,17 @@ app/src/main/java/com/flowbubble/app/
   commands/                    app lookup, contact lookup, execution routes
   commands/AppAliases.kt       spoken-name and phonetic aliases for apps
   service/OverlayService.kt    foreground service, windows, session state
+  service/AutomationReceiver.kt  alarm arming, boot re-arm, and the sweep that
+                                 decides run / ask / blocked for every rule
   service/FlowTileService.kt   Quick Settings tile
   ui/                          Compose screens and theme
+  ui/AutomationsScreen.kt      the automation list, editor, and safety notices
+app/src/main/res/drawable-nodpi/companion_*.png
+                               the rendered character, one still per pose
 app/src/main/res/drawable/ic_launcher_*.xml
                                adaptive icon: background, foreground, monochrome
+tools/companion-sprites.py     builds the pose stills into drawable-nodpi
+tools/launcher-icon.py         builds the launcher foreground and brand icon
 app/src/test/java/...          parser, router, planner, vision, outcome, and
                                safety unit tests (no Android runtime needed)
 .github/workflows/ci.yml       PR and main: debug build, unit tests, artifacts

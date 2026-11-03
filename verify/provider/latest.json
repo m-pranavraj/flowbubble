@@ -1,0 +1,144 @@
+{
+  "ranAt": "2026-11-02T23:33:42.184Z",
+  "endpoint": "http://10.0.2.2:8971/v1",
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "auth": "",
+      "agent": "YourBubble/1.1.0",
+      "contentType": "application/json",
+      "model": "mock-default",
+      "temperature": 0.2,
+      "messages": 2,
+      "userCharacters": 4,
+      "at": "2026-11-02T23:23:39.674Z"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "auth": "Bearer sk-device-proof-9137",
+      "agent": "YourBubble/1.1.0",
+      "contentType": "application/json",
+      "model": "mock-dictation",
+      "temperature": 0.2,
+      "messages": 2,
+      "userCharacters": 4,
+      "at": "2026-11-02T23:25:02.932Z"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "auth": "Bearer sk-device-proof-9137",
+      "agent": "YourBubble/1.1.0",
+      "contentType": "application/json",
+      "model": "mock-dictation",
+      "temperature": 0.2,
+      "messages": 2,
+      "userCharacters": 30,
+      "at": "2026-11-02T23:27:01.493Z"
+    }
+  ],
+  "checks": [
+    {
+      "name": "debug build with the transcript receiver is installed",
+      "ok": true,
+      "detail": "versionName=1.1.0"
+    },
+    {
+      "name": "the mock endpoint is reachable from the app itself",
+      "ok": true,
+      "detail": "rc=0"
+    },
+    {
+      "name": "the bubble turns on from the app Setup screen",
+      "ok": true,
+      "detail": "OverlayService running"
+    },
+    {
+      "name": "settings shows one AI models card",
+      "ok": true,
+      "detail": "AI MODELS"
+    },
+    {
+      "name": "a hosted endpoint over plain http without a key is refused in the UI",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a keyless local endpoint saves as a profile",
+      "ok": true,
+      "detail": "http://10.0.2.2:8971/v1"
+    },
+    {
+      "name": "test reaches the mock over plain http with no Authorization header",
+      "ok": true,
+      "detail": "POST /v1/chat/completions auth=\"\""
+    },
+    {
+      "name": "the client identifies itself with the running version",
+      "ok": true,
+      "detail": "YourBubble/1.1.0"
+    },
+    {
+      "name": "the request carries the profile model and both messages",
+      "ok": true,
+      "detail": "{\"model\":\"mock-default\",\"messages\":2}"
+    },
+    {
+      "name": "the app reports the round trip in its own UI",
+      "ok": true,
+      "detail": "Worked in 77ms: OK"
+    },
+    {
+      "name": "a second profile can be added for one role",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a stored key is sent as a bearer token",
+      "ok": true,
+      "detail": "auth=\"Bearer sk-device-proof-9137\""
+    },
+    {
+      "name": "the stored key is nowhere in app storage as plain text",
+      "ok": true,
+      "detail": "no file matches the key"
+    },
+    {
+      "name": "a role can be assigned to one profile from the UI",
+      "ok": true,
+      "detail": "Dictation mock · mock-dictation"
+    },
+    {
+      "name": "dictation cleanup goes to the profile assigned to that role",
+      "ok": true,
+      "detail": "model=mock-dictation"
+    },
+    {
+      "name": "only the spoken words leave the device and the answer comes back whole",
+      "ok": false,
+      "detail": "the field still holds the dictation text (30 chars sent)"
+    },
+    {
+      "name": "a profile that will fail can still be added",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a refused request names the status and hides the key",
+      "ok": false,
+      "detail": "no outcome shown"
+    },
+    {
+      "name": "profiles and the role assignment survive a restart",
+      "ok": true,
+      "detail": "Key ••••9137; Dictation cleanup answers with Dictation mock · mock-dictation"
+    },
+    {
+      "name": "the settings UI never prints a full key",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

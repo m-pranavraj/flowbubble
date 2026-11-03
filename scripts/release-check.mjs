@@ -23,9 +23,20 @@ function sh(argv, { allowFail = false, timeout = 40000 } = {}) {
 }
 const shell = (command, opts) => sh(['shell', command], opts);
 
-const dumpUi = () => {
-  shell('uiautomator dump /sdcard/rel-ui.xml', { allowFail: true, timeout: 20000 });
-  return shell('cat /sdcard/rel-ui.xml', { allowFail: true, timeout: 20000 });
+/*
+ * A failed dump leaves whatever the previous dump wrote at that path, so reading the file alone can
+ * return a screen that is no longer on the device. Deleting first makes a failed dump a missing file
+ * — which the retry treats as one — rather than a stale tree that looks fresh.
+ */
+const dumpUi = (attempts = 3) => {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    shell('rm -f /sdcard/rel-ui.xml', { allowFail: true, timeout: 15000 });
+    shell('uiautomator dump /sdcard/rel-ui.xml', { allowFail: true, timeout: 20000 });
+    const xml = shell('cat /sdcard/rel-ui.xml', { allowFail: true, timeout: 20000 });
+    if (xml.includes('<node') && xml.length > 800) return xml;
+    sleep(700);
+  }
+  return '';
 };
 
 function centre(xml, attribute, label) {
@@ -56,7 +67,19 @@ function turnBubbleOn() {
   const { w, h } = size();
   shell(`monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`, { allowFail: true });
   sleep(2500);
-  const setup = centre(dumpUi(), 'text', 'Setup');
+  /*
+   * A cold start is still drawing when the launch command returns, so one read can describe the
+   * screen before it. The harness taps by node, and a node from a screen that is gone sends a tap to
+   * coordinates that now belong to something else — which reads as a broken app, not a race.
+   */
+  let setup = null;
+  for (let attempt = 0; attempt < 6 && !setup; attempt += 1) {
+    setup = centre(dumpUi(), 'text', 'Setup');
+    if (!setup) {
+      shell(`monkey -p ${PKG} -c android.intent.category.LAUNCHER 1`, { allowFail: true });
+      sleep(1500);
+    }
+  }
   if (!setup) return false;
   shell(`input tap ${setup.x} ${setup.y}`, { allowFail: true });
   sleep(1500);

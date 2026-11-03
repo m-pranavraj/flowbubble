@@ -1,82 +1,82 @@
-# FlowBubble execution benchmark
+# Your Bubble execution benchmark
 
 - device: emulator-5554
-- run: Sun Nov 01 2026 16:42:20 GMT+0530 (India Standard Time)
-- result: 61 passed, 2 skipped, 4 failed
+- run: Tue Nov 03 2026 05:46:24 GMT+0530 (India Standard Time)
+- result: 0 passed, 0 skipped, 67 failed
 
 | task | phrase | verdict | observed | note |
 | --- | --- | --- | --- | --- |
-| app.youtube | open youtube | PASS | App / Opened YouTube / done |  |
-| app.chrome | open chrome | PASS | App / Opened Chrome / done |  |
-| app.gmail | open gmail | PASS | App / Opened Gmail / done |  |
-| app.camera | open camera | PASS | App / Opened Camera / done |  |
-| app.messages | open messages | PASS | App / Opened Messages / done |  |
-| app.settings | open settings | PASS | System / Opened Android settings / done |  |
-| app.playstore | open play store | PASS | App / Opened Play Store / done |  |
-| app.photos | open photos | PASS | App / Opened Photos / done |  |
-| app.maps | open maps | PASS | App / Opened Maps / done |  |
-| app.clock | open clock | PASS | App / Opened Clock / done |  |
-| app.typo | opem youube | PASS | App / Look up "opem youube" / did you mean YouTube |  |
-| app.hindi | यूट्यूब खोलो | PASS | App / Opened YouTube / done |  |
-| app.hinglish | kholo chrome | PASS | App / Opened Chrome / done |  |
-| app.unknown | open zzzqwerty | PASS | App / Look up "zzzqwerty" / did you mean Safety |  |
-| search.web | search the web for weather | PASS | Web / Search for “weather” / awaiting user |  |
-| search.lookup | look up weather | PASS | Web / Search for “weather” / awaiting user |  |
-| search.url | go to example.com | PASS | Web / https://example.com / awaiting user |  |
-| search.youtube | search lofi in youtube | FAIL | Agent / Stopped: Search YouTube for “lofi” / failed \| Search / Search YouTube for "lofi" / requested | expected entry never appeared |
-| search.chrome | search weather in chrome | PASS | Agent / Completed: Search Chrome for “weather” / done \| Search / Search Chrome for "weather" / requested |  |
-| search.screen | search this screen for weather | PASS | Agent / Completed: Search for “weather” / done |  |
-| search.hindi | क्रोम में मौसम खोजो | PASS | Agent / Completed: Search Chrome for “मौसम” / done \| Search / Search Chrome for "मौसम" / requested |  |
-| search.hinglish | youtube mein lofi khojo | FAIL | Agent / Stopped: Search YouTube for “lofi” / failed \| Search / Search YouTube for "lofi" / requested | expected entry never appeared |
-| screen.scrollDown | scroll down | PASS | Screen / Scrolled down / done |  |
-| screen.scrollUp | scroll up | PASS | Screen / Scrolled up / done |  |
-| screen.tap | tap battery | PASS | Screen / Tapped Battery / done |  |
-| screen.back | go back | PASS | Screen / Went back / done |  |
-| screen.recents | open recents | PASS | Screen / Opened recent apps / done |  |
-| screen.home | go home | PASS | Screen / Went home / done |  |
-| screen.read | read this screen | PASS | Read / Read 344 characters via accessibility / done |  |
-| screen.actions | what can i do here | PASS | Actions / Scan this screen / nothing found |  |
-| screen.screenshot | take a screenshot | PASS | System / Screenshot requested / requested |  |
-| screen.readHindi | स्क्रीन पढ़ो | PASS | Read / Read 344 characters via accessibility / done |  |
-| screen.scrollHindi | नीचे स्क्रॉल करो | PASS | Screen / Scrolled down / done |  |
-| screen.backHindi | पीछे जाओ | PASS | Screen / Went back / done |  |
-| sys.timer | set a timer for 5 minutes | PASS | Timer / Timer for 5 min / requested |  |
-| sys.timerHindi | पाँच मिनट का टाइमर लगाओ | PASS | Timer / Timer for 5 min / requested |  |
-| sys.alarm | set an alarm for 7:30 am | PASS | Alarm / Alarm at 07:30 / requested |  |
-| sys.battery | battery status | PASS | Battery / 100% / done |  |
-| sys.batteryHindi | बैटरी बताओ | PASS | Battery / 100% / done |  |
-| sys.volumeUp | volume up | PASS | Volume / Media volume up / done |  |
-| sys.volumeDown | volume down | PASS | Volume / Media volume down / done |  |
-| sys.volumeHindi | आवाज़ बढ़ाओ | PASS | Volume / Media volume up / done |  |
-| sys.mute | mute | PASS | Volume / Muted media / done |  |
-| sys.unmute | unmute | PASS | Volume / Unmuted media / done |  |
-| sys.torchOn | turn on the flashlight | SKIP | System / Flashlight on / done | device lacks the hardware for this task |
-| sys.torchOff | turn off the flashlight | SKIP | System / Flashlight off / done | device lacks the hardware for this task |
-| sys.dndOn | turn on do not disturb | PASS | Do Not Disturb / On / done |  |
-| sys.dndOff | turn off do not disturb | PASS | Do Not Disturb / Off / done |  |
-| sys.notifications | read notifications | PASS | Notifications / Read 1 notifications / done |  |
-| sys.clearNotifications | clear notifications | PASS | Notifications / Clear notifications / nothing found |  |
-| comms.call | call pranav | PASS | Call / Dialer opened for Pranav / awaiting user |  |
-| comms.chat | chat with pranav | PASS | Chat / Opened Pranav's chat on Messages / done \| Chat / Open Pranav on Messages / requested |  |
-| comms.chatOf | go to chat of pranav | PASS | Chat / Opened Pranav's chat on Messages / done \| Chat / Open Pranav on Messages / requested |  |
-| comms.chatHindi | प्रणव से चैट करो | PASS | Chat / Opened Pranav's chat on Messages / done \| Chat / Open Pranav on Messages / requested |  |
-| comms.message | message pranav saying I will be late | PASS | Message / Confirm draft to Pranav / awaiting user |  |
-| comms.messageHindi | प्रणव को मैसेज भेजो कि मैं देर से आऊंगा | PASS | Message / Confirm draft to Pranav / awaiting user |  |
-| comms.email | email test@example.com about lunch | PASS | Email / Draft email / awaiting user |  |
-| comms.calendar | create an event for team lunch | PASS | Calendar / New event draft / awaiting user |  |
-| comms.maps | navigate to chennai | PASS | Maps / Open "chennai" / awaiting user |  |
-| routine.save | save a routine called bench for open youtube | PASS | Routine / Saved bench / done |  |
-| routine.run | run routine bench | FAIL | Routine / Ran bench / requested | expected foreground com.google.android.youtube |
-| routine.list | list routines | PASS | Routine / Listed 1 routines / done |  |
-| routine.delete | delete routine bench | PASS | Routine / Delete bench / awaiting user |  |
-| follow.repeat | again | PASS | Battery / 100% / done |  |
-| follow.copy | copy that | PASS | Clipboard / Copied the last text / copied |  |
-| agent.chain | open chrome and search for weather | PASS | Agent / Completed: open chrome and search for weather / done \| Agent / open chrome and search for weather / requested |  |
-| agent.youtube | open youtube and search for lofi | FAIL | Agent / Stopped: open youtube and search for lofi / failed \| Agent / open youtube and search for lofi / requested | expected entry never appeared |
+| app.youtube | open youtube | FAIL | no new trace entries | expected entry never appeared |
+| app.chrome | open chrome | FAIL | no new trace entries | expected entry never appeared |
+| app.gmail | open gmail | FAIL | no new trace entries | expected entry never appeared |
+| app.camera | open camera | FAIL | no new trace entries | expected entry never appeared |
+| app.messages | open messages | FAIL | no new trace entries | expected entry never appeared |
+| app.settings | open settings | FAIL | no new trace entries | expected entry never appeared |
+| app.playstore | open play store | FAIL | no new trace entries | expected entry never appeared |
+| app.photos | open photos | FAIL | no new trace entries | expected entry never appeared |
+| app.maps | open maps | FAIL | no new trace entries | expected entry never appeared |
+| app.clock | open clock | FAIL | no new trace entries | expected entry never appeared |
+| app.typo | opem youube | FAIL | no new trace entries | expected entry never appeared |
+| app.hindi | यूट्यूब खोलो | FAIL | no new trace entries | expected entry never appeared |
+| app.hinglish | kholo chrome | FAIL | no new trace entries | expected entry never appeared |
+| app.unknown | open zzzqwerty | FAIL | no new trace entries | expected entry never appeared |
+| search.web | search the web for weather | FAIL | no new trace entries | expected entry never appeared |
+| search.lookup | look up weather | FAIL | no new trace entries | expected entry never appeared |
+| search.url | go to example.com | FAIL | no new trace entries | expected entry never appeared |
+| search.youtube | search lofi in youtube | FAIL | no new trace entries | expected entry never appeared |
+| search.chrome | search weather in chrome | FAIL | no new trace entries | expected entry never appeared |
+| search.screen | search this screen for weather | FAIL | no new trace entries | expected entry never appeared |
+| search.hindi | क्रोम में मौसम खोजो | FAIL | no new trace entries | expected entry never appeared |
+| search.hinglish | youtube mein lofi khojo | FAIL | no new trace entries | expected entry never appeared |
+| screen.scrollDown | scroll down | FAIL | no new trace entries | expected entry never appeared |
+| screen.scrollUp | scroll up | FAIL | no new trace entries | expected entry never appeared |
+| screen.tap | tap battery | FAIL | no new trace entries | expected entry never appeared |
+| screen.back | go back | FAIL | no new trace entries | expected entry never appeared |
+| screen.recents | open recents | FAIL | no new trace entries | expected entry never appeared |
+| screen.home | go home | FAIL | no new trace entries | expected entry never appeared |
+| screen.read | read this screen | FAIL | no new trace entries | expected entry never appeared |
+| screen.actions | what can i do here | FAIL | no new trace entries | expected entry never appeared |
+| screen.screenshot | take a screenshot | FAIL | no new trace entries | expected entry never appeared |
+| screen.readHindi | स्क्रीन पढ़ो | FAIL | no new trace entries | expected entry never appeared |
+| screen.scrollHindi | नीचे स्क्रॉल करो | FAIL | no new trace entries | expected entry never appeared |
+| screen.backHindi | पीछे जाओ | FAIL | no new trace entries | expected entry never appeared |
+| sys.timer | set a timer for 5 minutes | FAIL | no new trace entries | expected entry never appeared |
+| sys.timerHindi | पाँच मिनट का टाइमर लगाओ | FAIL | no new trace entries | expected entry never appeared |
+| sys.alarm | set an alarm for 7:30 am | FAIL | no new trace entries | expected entry never appeared |
+| sys.battery | battery status | FAIL | no new trace entries | expected entry never appeared |
+| sys.batteryHindi | बैटरी बताओ | FAIL | no new trace entries | expected entry never appeared |
+| sys.volumeUp | volume up | FAIL | no new trace entries | expected entry never appeared |
+| sys.volumeDown | volume down | FAIL | no new trace entries | expected entry never appeared |
+| sys.volumeHindi | आवाज़ बढ़ाओ | FAIL | no new trace entries | expected entry never appeared |
+| sys.mute | mute | FAIL | no new trace entries | expected entry never appeared |
+| sys.unmute | unmute | FAIL | no new trace entries | expected entry never appeared |
+| sys.torchOn | turn on the flashlight | FAIL | no new trace entries | expected entry never appeared |
+| sys.torchOff | turn off the flashlight | FAIL | no new trace entries | expected entry never appeared |
+| sys.dndOn | turn on do not disturb | FAIL | no new trace entries | expected entry never appeared |
+| sys.dndOff | turn off do not disturb | FAIL | no new trace entries | expected entry never appeared |
+| sys.notifications | read notifications | FAIL | no new trace entries | expected entry never appeared |
+| sys.clearNotifications | clear notifications | FAIL | no new trace entries | expected entry never appeared |
+| comms.call | call pranav | FAIL | no new trace entries | expected entry never appeared |
+| comms.chat | chat with pranav | FAIL | no new trace entries | expected entry never appeared |
+| comms.chatOf | go to chat of pranav | FAIL | no new trace entries | expected entry never appeared |
+| comms.chatHindi | प्रणव से चैट करो | FAIL | no new trace entries | expected entry never appeared |
+| comms.message | message pranav saying I will be late | FAIL | no new trace entries | expected entry never appeared |
+| comms.messageHindi | प्रणव को मैसेज भेजो कि मैं देर से आऊंगा | FAIL | no new trace entries | expected entry never appeared |
+| comms.email | email test@example.com about lunch | FAIL | no new trace entries | expected entry never appeared |
+| comms.calendar | create an event for team lunch | FAIL | no new trace entries | expected entry never appeared |
+| comms.maps | navigate to chennai | FAIL | no new trace entries | expected entry never appeared |
+| routine.save | save a routine called bench for open youtube | FAIL | no new trace entries | expected entry never appeared |
+| routine.run | run routine bench | FAIL | no new trace entries | expected entry never appeared |
+| routine.list | list routines | FAIL | no new trace entries | expected entry never appeared |
+| routine.delete | delete routine bench | FAIL | no new trace entries | expected entry never appeared |
+| follow.repeat | again | FAIL | no new trace entries | expected entry never appeared |
+| follow.copy | copy that | FAIL | no new trace entries | expected entry never appeared |
+| agent.chain | open chrome and search for weather | FAIL | no new trace entries | expected entry never appeared |
+| agent.youtube | open youtube and search for lofi | FAIL | no new trace entries | expected entry never appeared |
 
 ## Skipped by design
 - dictation into a caret: needs a human-focused editable field; covered by the chat draft flow and unit tests
 - ask/translate screen: needs a configured AI endpoint; the gate is unit-tested
 - screen capture / OCR: requires per-session MediaProjection consent by design
 - Telegram/Signal/Instagram contact chats: no deterministic deep link, documented unsupported
-- placing calls and sending messages: FlowBubble stops at the dialer/draft by design
+- placing calls and sending messages: Your Bubble stops at the dialer/draft by design
