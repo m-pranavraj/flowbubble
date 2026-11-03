@@ -45,7 +45,10 @@ Turning it on starts a microphone-type foreground service; turning it off tears 
 `overlay/OverlayPanel.kt`, and the ongoing notification carries a Stop action.
 
 **DEVICE** — Tap the bubble for the options menu (panel actions, hands-free switch, turn-the-bubble-off).
-The tap also triggers a haptic and a "startled" reaction from the character.
+The tap also triggers a haptic and a "startled" reaction from the character. The panel's title and every
+button label render in full — "Your Bubble", "Open Your Bubble", "Turn on hands-free", "Turn off bubble",
+"Close" — which is what `verify/ui_recheck_quickmenu.png` shows; before the 1.2.0 restyle the title was
+clipped by the header rail and the labels truncated.
 
 **TESTED** — The Quick Settings tile (`service/FlowTileService.kt`) toggles the same switch as the app.
 On Android 14+ it uses the tile's required visibility handling.
@@ -74,7 +77,9 @@ never starts that download by itself — the button is the consent and the size 
 
 **DEVICE** — The raw ML Kit failure codes no longer leak into the UI. `voice/LocalSpeechModel.kt:98`
 maps each documented `FeatureStatus` to a human sentence; anything unknown becomes "not available on
-this device" rather than the number `0`, which is what used to appear in Settings.
+this device" rather than the number `0`, which is what used to appear in Settings. Seen on the device as
+the chip "Not available on this device" over the sentence "This phone doesn't offer the on-device model
+for en-IN, so Your Bubble uses the system recognizer." (`verify/ui_recheck_speech_engine.png`).
 
 **TESTED** — `voice/PhraseResolver.kt` re-scores a heard phrase against installed app labels and known
 aliases with a typo distance, because ML Kit returns no confidence and no alternatives. A clear match
